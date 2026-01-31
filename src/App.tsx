@@ -32,9 +32,11 @@ function App() {
         </a>
       </div>
 
-      <h1 className="text-4xl font-bold mb-8 text-primary">gitlabify</h1>
+      <h1 className="text-4xl font-bold mb-8 text-primary flex items-center gap-2">
+        <span>🦊</span> gitlabify
+      </h1>
 
-      <p className="mb-8">Click on the Tauri and React logos to learn more.</p>
+      <p className="mb-8 opacity-70">GitLab Desktop Notification Center</p>
 
       <form
         className="flex space-x-4 mb-8"
