@@ -12,7 +12,7 @@ function App() {
 
   return (
     <main
-      className="container mx-auto p-4 flex flex-col items-center justify-center min-h-screen bg-base-100 text-base-content"
+      className="flex flex-col items-center justify-center flex-1 bg-base-100 text-base-content p-4"
       data-theme="zinc"
     >
       <div className="flex flex-row space-x-8 mb-8">
