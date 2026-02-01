@@ -1239,6 +1239,7 @@ dependencies = [
  "tauri-plugin-keychain",
  "tauri-plugin-opener",
  "tauri-plugin-store",
+ "url",
 ]
 
 [[package]]
