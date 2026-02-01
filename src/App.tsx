@@ -1,25 +1,35 @@
 import { useState } from "react";
 import { useGitlabSettings } from "./hooks/useGitlabSettings";
+import { useAuth } from "./hooks/useAuth";
 import { SetupScreen } from "./features/onboarding/SetupScreen";
+import { AuthScreen } from "./features/auth/AuthScreen";
 
 function App() {
-  const { gitlabHost, isLoading } = useGitlabSettings();
-  const [isSettingUp, setIsSettingUp] = useState(false);
+  const { gitlabHost, isLoading: isLoadingSettings } = useGitlabSettings();
+  const { isAuthenticated, isLoadingToken, user, logout } = useAuth();
+  const [isChangingHost, setIsChangingHost] = useState(false);
 
-  const onChangeURLClick = () => {
-    setIsSettingUp(true);
-  };
+  const isLoading = isLoadingSettings || isLoadingToken;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-base-100">
-        <span className="loading loading-spinner loading-lg text-primary"></span>
+        <span className="loading loading-spinner loading-md text-zinc-900"></span>
       </div>
     );
   }
 
-  if (!gitlabHost || isSettingUp) {
-    return <SetupScreen onComplete={() => setIsSettingUp(false)} />;
+  if (!gitlabHost || isChangingHost) {
+    return <SetupScreen onComplete={() => setIsChangingHost(false)} />;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <AuthScreen
+        onComplete={() => {}}
+        onBack={() => setIsChangingHost(true)}
+      />
+    );
   }
 
   return (
@@ -39,13 +49,42 @@ function App() {
         </header>
 
         <section className="space-y-6">
-          <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-lg space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Instance URL
-            </p>
-            <p className="font-mono text-sm truncate text-zinc-600">
-              {gitlabHost}
-            </p>
+          <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-lg space-y-3">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Connected as
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  {user?.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs font-bold text-zinc-400">
+                      {user?.name?.charAt(0) || "U"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm font-medium text-zinc-900">
+                  {user?.name}{" "}
+                  <span className="text-zinc-400 font-normal">
+                    @{user?.username}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1 border-t border-zinc-100 pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Instance URL
+              </p>
+              <p className="font-mono text-[10px] truncate text-zinc-600">
+                {gitlabHost}
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-col gap-3">
@@ -54,9 +93,9 @@ function App() {
             </button>
             <button
               className="w-full py-2 bg-transparent text-zinc-500 hover:text-zinc-400 text-sm font-medium transition-colors cursor-pointer"
-              onClick={onChangeURLClick}
+              onClick={() => logout()}
             >
-              Change URL
+              Logout
             </button>
           </div>
         </section>
