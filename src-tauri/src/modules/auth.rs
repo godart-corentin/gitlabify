@@ -39,16 +39,16 @@ pub async fn verify_token(token: String, host: String) -> Result<User, AuthError
     let client = reqwest::Client::builder()
         .user_agent("gitlabify")
         .build()
-        .map_err(|e| AuthError::NetworkError("Failed to initialize network client".to_string()))?;
+        .map_err(|_e| AuthError::NetworkError("Failed to initialize network client".to_string()))?;
         
     let url = format!("{}/api/v4/user", host.trim_end_matches('/'));
     
     let response = client
         .get(&url)
-        .header("PRIVATE-TOKEN", &token)
+        .bearer_auth(&token)
         .send()
         .await
-        .map_err(|e| AuthError::NetworkError("Network request failed. Check your connection and host URL.".to_string()))?;
+        .map_err(|_e| AuthError::NetworkError("Network request failed. Check your connection and host URL.".to_string()))?;
 
     if response.status().is_success() {
         // AC 2: Validate required scopes (api, read_user)

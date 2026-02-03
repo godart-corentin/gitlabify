@@ -6,17 +6,24 @@ import {
   verifyToken,
   User,
   deleteToken,
+  startOauthFlow,
+  exchangeCodeForToken,
 } from "../lib/commands";
 
 export function useAuth() {
   const queryClient = useQueryClient();
 
   // Query to get the current token (check if authenticated)
-  const { data: token, isLoading: isLoadingToken } = useQuery({
+  const {
+    data: token,
+    isLoading: isLoadingToken,
+    refetch: refetchToken,
+  } = useQuery({
     queryKey: ["auth-token"],
     queryFn: getToken,
     retry: false,
     staleTime: Infinity,
+    refetchOnWindowFocus: true,
   });
 
   const { gitlabHost } = useGitlabSettings();
@@ -52,6 +59,25 @@ export function useAuth() {
     },
   });
 
+  // Mutation to start OAuth flow
+  const startOauthMutation = useMutation({
+    mutationFn: startOauthFlow,
+  });
+
+  // Mutation to exchange code for token
+  const exchangeCodeMutation = useMutation({
+    mutationFn: async (code: string) => {
+      return await exchangeCodeForToken(code);
+    },
+    onSuccess: (user) => {
+      queryClient.setQueryData(["auth-user"], user);
+      queryClient.invalidateQueries({ queryKey: ["auth-token"] });
+    },
+    onError: (_error) => {
+      // handled by UI
+    },
+  });
+
   const logoutMutation = useMutation({
     mutationFn: deleteToken,
     onSuccess: () => {
@@ -59,6 +85,11 @@ export function useAuth() {
       queryClient.setQueryData(["auth-user"], null);
     },
   });
+
+  const authError =
+    verifyAndSaveMutation.error ||
+    exchangeCodeMutation.error ||
+    startOauthMutation.error;
 
   return {
     user,
@@ -68,6 +99,12 @@ export function useAuth() {
     verifyAndSave: verifyAndSaveMutation.mutateAsync,
     isVerifying: verifyAndSaveMutation.isPending,
     verifyError: verifyAndSaveMutation.error,
+    startOauth: startOauthMutation.mutateAsync,
+    isStartingOauth: startOauthMutation.isPending,
+    exchangeCode: exchangeCodeMutation.mutateAsync,
+    isExchanging: exchangeCodeMutation.isPending,
+    authError,
     logout: logoutMutation.mutate,
+    refetchToken,
   };
 }

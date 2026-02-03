@@ -21,6 +21,16 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "mobile": [],
+      "desktop": [
+        {
+          "schemes": ["gitlabify"]
+        }
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

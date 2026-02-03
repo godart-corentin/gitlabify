@@ -1,15 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-
-export interface User {
-  id: number;
-  username: string;
-  name: string;
-  avatarUrl?: string | null;
-}
-
-export interface GitlabHostResponse {
-  host: string | null;
-}
+export type { User, GitlabHostResponse, AuthError } from "./types";
+import type { User, GitlabHostResponse } from "./types";
 
 /**
  * Gets the configured GitLab host URL from the store.
@@ -59,4 +50,17 @@ export async function getToken(): Promise<string | null> {
  */
 export async function deleteToken(): Promise<void> {
   await invoke("delete_token");
+}
+/**
+ * Initiates the GitLab OAuth PKCE flow.
+ */
+export async function startOauthFlow(): Promise<string> {
+  return await invoke<string>("start_oauth_flow");
+}
+
+/**
+ * Exchanges an OAuth code for a token and returns the user profile.
+ */
+export async function exchangeCodeForToken(code: string): Promise<User> {
+  return await invoke<User>("exchange_code_for_token", { code });
 }

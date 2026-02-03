@@ -16,14 +16,21 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+dotenvy = "0.15"
 
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2.2.0"
 tauri-plugin-keyring = "0.1.0"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2.5.8"
-reqwest = { version = "0.13.1", features = ["json"] }
-
+reqwest = { version = "0.13.1", features = ["json", "form"] }
+urlencoding = "2.1.3"
+dotenvy = "0.15"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
