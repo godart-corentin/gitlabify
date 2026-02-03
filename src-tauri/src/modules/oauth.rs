@@ -13,16 +13,6 @@ pub struct OAuthState {
     pub code_verifier: Mutex<Option<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OAuthResponse {
-    pub access_token: String,
-    pub token_type: String,
-    pub expires_in: Option<u64>,
-    pub refresh_token: Option<String>,
-    pub scope: String,
-    pub created_at: Option<u64>,
-}
-
 #[tauri::command]
 pub async fn start_oauth_flow(
     app: AppHandle,
