@@ -1,15 +1,11 @@
-import { useState } from "react";
-import { useGitlabSettings } from "./hooks/useGitlabSettings";
 import { useAuth } from "./hooks/useAuth";
-import { SetupScreen } from "./features/onboarding/SetupScreen";
 import { AuthScreen } from "./features/auth/AuthScreen";
 
 function App() {
-  const { gitlabHost, isLoading: isLoadingSettings } = useGitlabSettings();
-  const { isAuthenticated, isLoadingToken, user, logout } = useAuth();
-  const [isChangingHost, setIsChangingHost] = useState(false);
+  const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } =
+    useAuth();
 
-  const isLoading = isLoadingSettings || isLoadingToken;
+  const isLoading = isLoadingToken || isLoadingUser;
 
   if (isLoading) {
     return (
@@ -19,86 +15,59 @@ function App() {
     );
   }
 
-  if (!gitlabHost || isChangingHost) {
-    return <SetupScreen onComplete={() => setIsChangingHost(false)} />;
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <AuthScreen
-        onComplete={() => {}}
-        onBack={() => setIsChangingHost(true)}
-      />
-    );
+  if (!isAuthenticated || !user) {
+    return <AuthScreen onComplete={() => {}} />;
   }
 
   return (
     <main
-      className="flex flex-col items-center justify-center min-h-screen bg-base-100 text-base-content p-8"
+      className="flex flex-col h-screen bg-base-100 text-base-content p-4"
       data-theme="zinc"
     >
-      <div className="w-full max-w-sm space-y-8">
-        <header className="space-y-4">
-          <div className="flex items-center gap-3">
-            <span className="text-4xl">🦊</span>
-            <h1 className="text-2xl font-semibold tracking-tight">gitlabify</h1>
+      <div className="w-full h-full flex flex-col">
+        <header className="flex items-center justify-between mb-4 flex-shrink-0 relative z-50">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🦊</span>
+            <h1 className="text-lg font-semibold tracking-tight">gitlabify</h1>
           </div>
-          <p className="text-sm text-zinc-500 leading-relaxed">
-            Successfully connected to your GitLab instance.
-          </p>
+
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end leading-none">
+              <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wide">
+                Connected as
+              </span>
+              <span className="text-xs font-semibold text-zinc-200 truncate max-w-[100px]">
+                {user.username}
+              </span>
+            </div>
+
+            <div className="w-8 h-8 rounded-full bg-zinc-100 overflow-hidden flex items-center justify-center flex-shrink-0">
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.name || "User"}
+                  className="w-full h-full object-cover"
+                />
+              ) : null}
+            </div>
+          </div>
         </header>
 
-        <section className="space-y-6">
-          <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-lg space-y-3">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Connected as
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {user?.avatarUrl ? (
-                    <img
-                      src={user.avatarUrl}
-                      alt={user.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs font-bold text-zinc-400">
-                      {user?.name?.charAt(0) || "U"}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm font-medium text-zinc-900">
-                  {user?.name}{" "}
-                  <span className="text-zinc-400 font-normal">
-                    @{user?.username}
-                  </span>
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-1 border-t border-zinc-100 pt-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Instance URL
-              </p>
-              <p className="font-mono text-[10px] truncate text-zinc-600">
-                {gitlabHost}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button className="w-full py-2 bg-zinc-900 text-white rounded-md font-medium hover:bg-zinc-800 transition-all cursor-pointer">
-              Continue to Dashboard
-            </button>
-            <button
-              className="w-full py-2 bg-transparent text-zinc-500 hover:text-zinc-400 text-sm font-medium transition-colors cursor-pointer"
-              onClick={() => logout()}
-            >
-              Logout
-            </button>
+        <section className="flex-1 flex flex-col items-center justify-center text-zinc-400 relative">
+          <div className="text-center space-y-2">
+            <span className="text-4xl block opacity-80">✨</span>
+            <p className="text-sm font-medium">All caught up!</p>
           </div>
         </section>
+
+        <footer className="flex-shrink-0 flex justify-end mt-2">
+          <button
+            onClick={() => logout()}
+            className="text-[12px] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+          >
+            Sign out
+          </button>
+        </footer>
       </div>
     </main>
   );
