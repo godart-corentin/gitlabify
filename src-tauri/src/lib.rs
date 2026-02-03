@@ -14,6 +14,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_keyring::init())
+        .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let _ = app
                 .get_webview_window("main")
@@ -34,6 +35,20 @@ pub fn run() {
             code_verifier: Mutex::new(None),
         })
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // Setup auto-hide on focus lost
+            let main_window = app.get_webview_window("main").expect("no main window");
+            let window_clone = main_window.clone();
+            main_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::Focused(focused) = event {
+                    if !focused {
+                        let _ = window_clone.hide();
+                    }
+                }
+            });
+
             // Register deep link for all platforms
             use tauri_plugin_deep_link::DeepLinkExt;
             match app.deep_link().register_all() {
@@ -45,6 +60,9 @@ pub fn run() {
                     println!("Deep link registration failed: {}", e);
                 }
             }
+
+            // Initialize System Tray
+            let _tray = modules::tray::create_tray(app.handle())?;
 
             let handle = app.handle().clone();
             

@@ -8,6 +8,7 @@
     "opener:default",
     "deep-link:default",
     "store:default",
-    "keyring:default"
+    "keyring:default",
+    "core:tray:default"
   ]
 }
