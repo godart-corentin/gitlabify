@@ -1,9 +1,9 @@
+use crate::modules::window_controls::toggle_window;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Runtime,
 };
-use crate::modules::window_controls::toggle_window;
 
 pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::TrayIcon<R>> {
     let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

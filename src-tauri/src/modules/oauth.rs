@@ -2,10 +2,10 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::{distributions::Alphanumeric, Rng};
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
-use tauri::{AppHandle, State, Manager};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::modules::auth::{verify_token, save_token, User};
+use crate::modules::auth::{save_token, verify_token, User};
 
 pub struct OAuthState {
     pub code_verifier: Mutex<Option<String>>,
@@ -40,7 +40,9 @@ pub async fn start_oauth_flow(
     );
 
     // Open browser
-    app.opener().open_url(auth_url, None::<&str>).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_url(auth_url, None::<&str>)
+        .map_err(|e| e.to_string())?;
 
     Ok("OAuth flow started".to_string())
 }
@@ -70,7 +72,8 @@ pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<Use
     ];
 
     let client = reqwest::Client::new();
-    let response = client.post(&token_url)
+    let response = client
+        .post(&token_url)
         .form(&params)
         .send()
         .await
@@ -88,10 +91,12 @@ pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<Use
         .to_string();
 
     // Verify and save the token
-    let user = verify_token(app.clone(), access_token.clone()).await.map_err(|e| {
-        e.to_string()
-    })?;
-    save_token(app, access_token).await.map_err(|e| e.to_string())?;
+    let user = verify_token(app.clone(), access_token.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+    save_token(app, access_token)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(user)
 }
@@ -120,6 +125,8 @@ mod tests {
         let challenge = generate_challenge(verifier);
         assert!(!challenge.is_empty());
         // Simple sanity check that it's base64 encoded
-        assert!(challenge.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_'));
+        assert!(challenge
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_'));
     }
 }

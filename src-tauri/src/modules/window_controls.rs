@@ -4,7 +4,7 @@ use tauri_plugin_positioner::{Position, WindowExt};
 pub fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let is_visible = window.is_visible().unwrap_or(false);
-        
+
         if is_visible {
             let _ = window.hide();
         } else {
@@ -21,11 +21,11 @@ pub fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
                 eprintln!("Tray position not set in plugin, falling back to Center");
                 let _ = window.move_window(Position::Center);
             }
-            
+
             if let Err(e) = window.show() {
                 eprintln!("failed to show window: {}", e);
             }
-            
+
             if let Err(e) = window.set_focus() {
                 eprintln!("failed to focus window: {}", e);
             }

@@ -35,17 +35,20 @@ const SERVICE_NAME: &str = "gitlabify";
 const PAT_KEY: &str = "private-token";
 
 #[tauri::command]
-pub async fn verify_token<R: tauri::Runtime>(_app: tauri::AppHandle<R>, token: String) -> Result<User, AuthError> {
+pub async fn verify_token<R: tauri::Runtime>(
+    _app: tauri::AppHandle<R>,
+    token: String,
+) -> Result<User, AuthError> {
     println!("Backend: verify_token called");
     let client = reqwest::Client::builder()
         .user_agent("gitlabify")
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|_e| AuthError::NetworkError("Failed to initialize network client".to_string()))?;
-        
+
     let host = "https://gitlab.com";
     let url = format!("{}/api/v4/user", host);
-    
+
     println!("Backend: sending request to {}", url);
     let response = client
         .get(&url)
@@ -54,7 +57,9 @@ pub async fn verify_token<R: tauri::Runtime>(_app: tauri::AppHandle<R>, token: S
         .await
         .map_err(|e| {
             println!("Backend: network error: {}", e);
-            AuthError::NetworkError("Network request failed. Check your connection and host URL.".to_string())
+            AuthError::NetworkError(
+                "Network request failed. Check your connection and host URL.".to_string(),
+            )
         })?;
 
     if response.status().is_success() {
@@ -66,7 +71,9 @@ pub async fn verify_token<R: tauri::Runtime>(_app: tauri::AppHandle<R>, token: S
 
             if !has_api || !has_read_user {
                 println!("Backend: missing scopes");
-                return Err(AuthError::NetworkError("Token missing required scopes: api and read_user".to_string()));
+                return Err(AuthError::NetworkError(
+                    "Token missing required scopes: api and read_user".to_string(),
+                ));
             }
         }
 
@@ -81,12 +88,18 @@ pub async fn verify_token<R: tauri::Runtime>(_app: tauri::AppHandle<R>, token: S
         Err(AuthError::InvalidToken)
     } else {
         println!("Backend: other error status {}", response.status());
-        Err(AuthError::NetworkError(format!("GitLab returned status: {}", response.status())))
+        Err(AuthError::NetworkError(format!(
+            "GitLab returned status: {}",
+            response.status()
+        )))
     }
 }
 
 #[tauri::command]
-pub async fn save_token<R: tauri::Runtime>(app: tauri::AppHandle<R>, token: String) -> Result<(), AuthError> {
+pub async fn save_token<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    token: String,
+) -> Result<(), AuthError> {
     println!("Backend: save_token called");
     app.keyring()
         .set_password(SERVICE_NAME, PAT_KEY, &token)
@@ -98,7 +111,9 @@ pub async fn save_token<R: tauri::Runtime>(app: tauri::AppHandle<R>, token: Stri
 }
 
 #[tauri::command]
-pub async fn get_token<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<Option<String>, AuthError> {
+pub async fn get_token<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<Option<String>, AuthError> {
     println!("Backend: get_token called");
     match app.keyring().get_password(SERVICE_NAME, PAT_KEY) {
         Ok(token) => {
@@ -108,7 +123,7 @@ pub async fn get_token<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<Op
                 println!("Backend: get_token returned None");
             }
             Ok(token)
-        },
+        }
         Err(e) => {
             // Check if it's a "not found" error, which is expected for new users
             let err_str = e.to_string();

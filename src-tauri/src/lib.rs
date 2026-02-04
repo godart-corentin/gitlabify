@@ -2,11 +2,11 @@ mod modules;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
-use tauri::{Manager, Emitter, Listener};
 use std::sync::Mutex;
+use tauri::{Emitter, Listener, Manager};
 
-use modules::auth::{verify_token, save_token, get_token, delete_token};
-use modules::oauth::{start_oauth_flow, exchange_code_for_token, OAuthState};
+use modules::auth::{delete_token, get_token, save_token, verify_token};
+use modules::oauth::{exchange_code_for_token, start_oauth_flow, OAuthState};
 use modules::window_controls::toggle_window;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -71,7 +71,7 @@ pub fn run() {
             let _tray = modules::tray::create_tray(app.handle())?;
 
             let handle = app.handle().clone();
-            
+
             // Standard Deep Link capturing for Tauri v2
             app.deep_link().on_open_url(move |event| {
                 let urls = event.urls();
