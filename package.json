@@ -16,7 +16,8 @@
     "test:coverage": "vitest --coverage",
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate": "bun lint && bun format && bun typecheck"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.20",
