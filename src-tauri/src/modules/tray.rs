@@ -10,23 +10,31 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray:
     let show_hide_i = MenuItem::with_id(app, "toggle", "Show/Hide", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_hide_i, &quit_i])?;
 
-    let tray = TrayIconBuilder::with_id("main")
+    let mut builder = TrayIconBuilder::with_id("main")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("Gitlabify")
         .on_menu_event(|app, event| match event.id().as_ref() {
             "quit" => {
                 app.exit(0);
             }
             "toggle" => {
                 if let Some(window) = app.get_webview_window("main") {
-                    let _ = if window.is_visible().unwrap_or(false) {
-                        window.hide().unwrap();
+                    if window.is_visible().unwrap_or(false) {
+                        if let Err(e) = window.hide() {
+                            eprintln!("failed to hide window: {}", e);
+                        }
                     } else {
                         // Move window to tray position before showing
-                        let _ = window.move_window(Position::TopRight);
-                        window.show().unwrap();
-                        window.set_focus().unwrap();
+                        if let Err(e) = window.move_window(Position::TopRight) {
+                             eprintln!("failed to move window: {}", e);
+                        }
+                        if let Err(e) = window.show() {
+                             eprintln!("failed to show window: {}", e);
+                        }
+                        if let Err(e) = window.set_focus() {
+                             eprintln!("failed to focus window: {}", e);
+                        }
                     };
                 }
             }
@@ -35,7 +43,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray:
         .on_tray_icon_event(|tray, event| match event {
             TrayIconEvent::Click {
                 button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
+                button_state: MouseButtonState::Down,
                 rect,
                 ..
             } => {
@@ -64,25 +72,35 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray:
                             let x = tray_x + (tray_width / 2.0) - (win_width / 2.0);
                             let y = tray_y + tray_height;
                             
-                            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                            if let Err(e) = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
                                 x: x as i32,
                                 y: y as i32
-                            }));
-                            positioned = true;
+                            })) {
+                                eprintln!("failed to set window position: {}", e);
+                            } else {
+                                positioned = true;
+                            }
                          }
                         
                         if !positioned {
                             let _ = window.move_window(Position::TopRight);
                         }
 
-                        let _ = window.show();
-                        let _ = window.set_focus();
+                        if let Err(e) = window.show() {
+                             eprintln!("failed to show window: {}", e);
+                        }
+                        if let Err(e) = window.set_focus() {
+                             eprintln!("failed to focus window: {}", e);
+                        }
                     }
                 }
             }
             _ => {}
-        })
-        .build(app);
+        });
 
-    tray
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    builder.build(app)
 }

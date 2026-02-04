@@ -16,10 +16,9 @@ pub fn run() {
         .plugin(tauri_plugin_keyring::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
 
             // Handle deep link via command line args (for when OS spawns a new instance)
             println!("Single Instance: Received args: {:?}", args);
@@ -39,15 +38,19 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             // Setup auto-hide on focus lost
-            let main_window = app.get_webview_window("main").expect("no main window");
-            let window_clone = main_window.clone();
-            main_window.on_window_event(move |event| {
-                if let tauri::WindowEvent::Focused(focused) = event {
-                    if !focused {
-                        let _ = window_clone.hide();
+            // Setup auto-hide on focus lost
+            if let Some(main_window) = app.get_webview_window("main") {
+                let window_clone = main_window.clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(focused) = event {
+                        if !focused {
+                            let _ = window_clone.hide();
+                        }
                     }
-                }
-            });
+                });
+            } else {
+                eprintln!("Error: main window not found during setup");
+            }
 
             // Register deep link for all platforms
             use tauri_plugin_deep_link::DeepLinkExt;
