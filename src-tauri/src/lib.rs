@@ -7,6 +7,8 @@ use std::sync::Mutex;
 
 use modules::auth::{verify_token, save_token, get_token, delete_token};
 use modules::oauth::{start_oauth_flow, exchange_code_for_token, OAuthState};
+use modules::window_controls::toggle_window;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -15,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_keyring::init())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_focus();
@@ -97,6 +100,16 @@ pub fn run() {
                     let _ = handle_backup.emit("oauth-callback-received", payload);
                 }
             });
+
+            // Register Global Shortcut
+            let shortcut: Shortcut = "CmdOrCtrl+Shift+G"
+                .parse()
+                .map_err(|e| tauri::Error::Runtime(Box::new(e)))?;
+            app.global_shortcut().on_shortcut(shortcut, move |app, _shortcut, event| {
+                if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    toggle_window(app);
+                }
+            })?;
 
             Ok(())
         })
