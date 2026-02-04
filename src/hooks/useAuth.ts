@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { User } from "../lib/commands";
 import {
   getToken,
   saveToken,
   verifyToken,
-  User,
   deleteToken,
   startOauthFlow,
   exchangeCodeForToken,
@@ -59,7 +59,7 @@ export function useAuth() {
           // If token is invalid/unauthorized, we should clear it
           // We can't use the mutation here directly as it might cause a loop or react warning
           // But throwing here will cause the query to be in error state
-          await deleteToken(); 
+          await deleteToken();
           queryClient.setQueryData(["auth-token"], null);
           throw e;
         }
@@ -110,9 +110,7 @@ export function useAuth() {
   });
 
   const authError =
-    verifyAndSaveMutation.error ||
-    exchangeCodeMutation.error ||
-    startOauthMutation.error;
+    verifyAndSaveMutation.error || exchangeCodeMutation.error || startOauthMutation.error;
 
   return {
     user,

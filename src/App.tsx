@@ -1,9 +1,8 @@
-import { useAuth } from "./hooks/useAuth";
 import { AuthScreen } from "./features/auth/AuthScreen";
+import { useAuth } from "./hooks/useAuth";
 
 function App() {
-  const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } =
-    useAuth();
+  const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuth();
 
   const isLoading = isLoadingToken || isLoadingUser;
 
@@ -20,10 +19,7 @@ function App() {
   }
 
   return (
-    <main
-      className="flex flex-col h-screen bg-base-100 text-base-content p-4"
-      data-theme="zinc"
-    >
+    <main className="flex flex-col h-screen bg-base-100 text-base-content p-4" data-theme="zinc">
       <div className="w-full h-full flex flex-col">
         <header className="flex items-center justify-between mb-4 flex-shrink-0 relative z-50">
           <div className="flex items-center gap-2">

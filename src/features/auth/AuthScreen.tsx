@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
-
 import { listen } from "@tauri-apps/api/event";
+import { useEffect, useState } from "react";
+
+import { useAuth } from "../../hooks/useAuth";
 import { isAuthError } from "../../lib/types";
 
 interface AuthScreenProps {
@@ -30,22 +30,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
 
   useEffect(() => {
     // Listen for deep link callbacks from the backend
-    const unlisten = listen<string>(
-      "oauth-callback-received",
-      async (event) => {
-        const urlString = event.payload;
-        try {
-          const url = new URL(urlString);
-          const code = url.searchParams.get("code");
-          if (code) {
-            await exchangeCode(code);
-            onComplete();
-          }
-        } catch (err: any) {
-          setValidationError(`OAuth Error: ${err.message || "Unknown error"}`);
+    const unlisten = listen<string>("oauth-callback-received", async (event) => {
+      const urlString = event.payload;
+      try {
+        const url = new URL(urlString);
+        const code = url.searchParams.get("code");
+        if (code) {
+          await exchangeCode(code);
+          onComplete();
         }
-      },
-    );
+      } catch (err: unknown) {
+        setValidationError(`OAuth Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      }
+    });
 
     return () => {
       unlisten.then((f) => f());
@@ -83,7 +80,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     try {
       await verifyAndSave({ token: trimmedToken });
       onComplete();
-    } catch (err) {
+    } catch {
       // already handled by mutation
     }
   };
@@ -99,15 +96,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     try {
       await exchangeCode(trimmedCode);
       onComplete();
-    } catch (err: any) {
-      setValidationError(err.message || "Failed to verify code");
+    } catch (err: unknown) {
+      setValidationError(err instanceof Error ? err.message : "Failed to verify code");
     }
   };
 
   const handleOAuth = async () => {
     try {
       await startOauth();
-    } catch (err) {
+    } catch {
       // already handled by mutation
     }
   };
@@ -133,10 +130,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const errorMessage = getErrorMessage();
 
   return (
-    <div
-      className="flex flex-col h-screen bg-base-100 p-4 text-base-content"
-      data-theme="zinc"
-    >
+    <div className="flex flex-col h-screen bg-base-100 p-4 text-base-content" data-theme="zinc">
       <div className="w-full h-full flex flex-col">
         <header className="flex items-center justify-between mb-4 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -153,9 +147,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
             >
               Authenticate
             </h2>
-            <p className="text-xs text-zinc-500">
-              Sign in to your GitLab account to continue.
-            </p>
+            <p className="text-xs text-zinc-500">Sign in to your GitLab account to continue.</p>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -241,9 +233,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                     autoFocus
                   />
                   {errorMessage && (
-                    <p className="text-[10px] text-error leading-tight">
-                      {errorMessage}
-                    </p>
+                    <p className="text-[10px] text-error leading-tight">{errorMessage}</p>
                   )}
                 </div>
 
