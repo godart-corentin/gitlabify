@@ -17,7 +17,7 @@ pub fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
 
             // Attempt to move. If it fails (e.g. tray position still unknown to plugin),
             // we fall back to screen center to avoid any potential panic or unexpected location.
-            if let Err(_) = window.move_window(tray_pos) {
+            if window.move_window(tray_pos).is_err() {
                 eprintln!("Tray position not set in plugin, falling back to Center");
                 let _ = window.move_window(Position::Center);
             }

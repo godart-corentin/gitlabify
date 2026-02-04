@@ -10,6 +10,8 @@ use modules::oauth::{exchange_code_for_token, start_oauth_flow, OAuthState};
 use modules::window_controls::toggle_window;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
+const DEFAULT_SHORTCUT: &str = "CmdOrCtrl+Shift+G";
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -102,14 +104,20 @@ pub fn run() {
             });
 
             // Register Global Shortcut
-            let shortcut: Shortcut = "CmdOrCtrl+Shift+G"
-                .parse()
-                .map_err(|e| tauri::Error::Runtime(Box::new(e)))?;
-            app.global_shortcut().on_shortcut(shortcut, move |app, _shortcut, event| {
-                if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    toggle_window(app);
+            match DEFAULT_SHORTCUT.parse::<Shortcut>() {
+                Ok(shortcut) => {
+                    if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |app, _shortcut, event| {
+                        if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                            toggle_window(app);
+                        }
+                    }) {
+                        eprintln!("Failed to register global shortcut: {}", e);
+                    }
                 }
-            })?;
+                Err(e) => {
+                    eprintln!("Failed to parse global shortcut: {}", e);
+                }
+            }
 
             Ok(())
         })

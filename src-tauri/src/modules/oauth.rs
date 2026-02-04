@@ -35,7 +35,7 @@ pub async fn start_oauth_flow(
         "{}/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=api+read_user&code_challenge={}&code_challenge_method=S256",
         host,
         client_id,
-        urlencoding::encode(&redirect_uri),
+        urlencoding::encode(redirect_uri),
         challenge
     );
 

@@ -25,17 +25,15 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray:
         })
         .on_tray_icon_event(|tray, event| {
             // Propagate event to positioner plugin to keep internal state synced
-            let _ = tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
+            tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
 
-            match event {
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Down,
-                    ..
-                } => {
-                    toggle_window(tray.app_handle());
-                }
-                _ => {}
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Down,
+                ..
+            } = event
+            {
+                toggle_window(tray.app_handle());
             }
         });
 
