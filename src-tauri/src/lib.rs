@@ -4,7 +4,7 @@ mod modules;
 
 use tauri::{Manager, Emitter, Listener};
 use std::sync::Mutex;
-use modules::settings::{clear_gitlab_host, get_gitlab_host, set_gitlab_host};
+
 use modules::auth::{verify_token, save_token, get_token, delete_token};
 use modules::oauth::{start_oauth_flow, exchange_code_for_token, OAuthState};
 
@@ -98,9 +98,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_gitlab_host,
-            set_gitlab_host,
-            clear_gitlab_host,
             verify_token,
             save_token,
             get_token,

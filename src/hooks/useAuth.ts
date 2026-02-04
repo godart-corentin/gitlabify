@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useGitlabSettings } from "./useGitlabSettings";
+
 import {
   getToken,
   saveToken,
@@ -20,13 +20,21 @@ export function useAuth() {
     refetch: refetchToken,
   } = useQuery({
     queryKey: ["auth-token"],
-    queryFn: getToken,
+    queryFn: async () => {
+      console.log("Frontend: calling getToken");
+      try {
+        const t = await getToken();
+        console.log("Frontend: getToken result:", t ? "found" : "null");
+        return t;
+      } catch (e) {
+        console.error("Frontend: getToken error:", e);
+        throw e;
+      }
+    },
     retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: true,
   });
-
-  const { gitlabHost } = useGitlabSettings();
 
   // Query to get the current user profile (after authentication)
   const { data: user, isLoading: isLoadingUser } = useQuery({
@@ -34,22 +42,40 @@ export function useAuth() {
     queryFn: async () => {
       // 1. Try to get from cache first (set during login)
       const cached = queryClient.getQueryData<User>(["auth-user"]);
-      if (cached) return cached;
-
-      // 2. If not in cache but we have token/host, fetch from GitLab
-      if (token && gitlabHost) {
-        return await verifyToken(token, gitlabHost);
+      if (cached) {
+        console.log("Frontend: user found in cache");
+        return cached;
       }
+
+      // 2. If not in cache but we have token, fetch from GitLab
+      if (token) {
+        console.log("Frontend: verifying token for user");
+        try {
+          const u = await verifyToken(token);
+          console.log("Frontend: user verified");
+          return u;
+        } catch (e) {
+          console.error("Frontend: verifyToken error:", e);
+          // If token is invalid/unauthorized, we should clear it
+          // We can't use the mutation here directly as it might cause a loop or react warning
+          // But throwing here will cause the query to be in error state
+          await deleteToken(); 
+          queryClient.setQueryData(["auth-token"], null);
+          throw e;
+        }
+      }
+      console.log("Frontend: no token to verify");
       return null;
     },
-    enabled: !!token && !!gitlabHost,
+    enabled: !!token,
+    retry: false,
     staleTime: 1000 * 60 * 60, // 1 hour cache
   });
 
   // Mutation to verify and save token
   const verifyAndSaveMutation = useMutation({
-    mutationFn: async ({ token, host }: { token: string; host: string }) => {
-      const user = await verifyToken(token, host);
+    mutationFn: async ({ token }: { token: string }) => {
+      const user = await verifyToken(token);
       await saveToken(token);
       return user;
     },
@@ -72,9 +98,6 @@ export function useAuth() {
     onSuccess: (user) => {
       queryClient.setQueryData(["auth-user"], user);
       queryClient.invalidateQueries({ queryKey: ["auth-token"] });
-    },
-    onError: (_error) => {
-      // handled by UI
     },
   });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
-import { useGitlabSettings } from "../../hooks/useGitlabSettings";
+
 import { listen } from "@tauri-apps/api/event";
 import { isAuthError } from "../../lib/types";
 
@@ -10,7 +10,6 @@ interface AuthScreenProps {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
-  const { setGitlabHost } = useGitlabSettings();
   const {
     verifyAndSave,
     isVerifying,
@@ -28,11 +27,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const [showPAT, setShowPAT] = useState(false);
   const [debugClicks, setDebugClicks] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  // Hardcode GitLab.com for MVP
-  useEffect(() => {
-    setGitlabHost("https://gitlab.com");
-  }, []);
 
   useEffect(() => {
     // Listen for deep link callbacks from the backend
@@ -87,7 +81,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     }
 
     try {
-      await verifyAndSave({ token: trimmedToken, host: "https://gitlab.com" });
+      await verifyAndSave({ token: trimmedToken });
       onComplete();
     } catch (err) {
       // already handled by mutation
@@ -183,91 +177,96 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
 
                 {/* Developer Manual Code Section (Appears when active) */}
                 {showManualCode && (
-                    <form
+                  <form
                     onSubmit={handleManualCodeSubmit}
                     className="flex items-center gap-2 animate-in slide-in-from-top-2 duration-300 flex-shrink-0 mt-1"
-                    >
-                        <div className="relative flex-1">
-                            <input
-                            type="text"
-                            value={manualCode}
-                            onChange={(e) => setManualCode(e.target.value)}
-                            placeholder="Paste OAuth code..."
-                            className="w-full bg-zinc-50 border border-zinc-200 rounded-md py-1.5 pl-2 pr-7 text-xs focus:outline-none focus:border-zinc-900 transition-colors"
-                            disabled={isPending}
-                            autoFocus
-                            />
-                            <button
-                            type="button"
-                            onClick={() => setShowManualCode(false)}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-1 leading-none text-sm"
-                            title="Cancel"
-                            >
-                            ✕
-                            </button>
-                        </div>
-                        <button
-                        type="submit"
-                        className="px-3 py-1.5 bg-zinc-900 text-white rounded-md text-xs font-medium hover:bg-zinc-800 transition-all disabled:opacity-50 shadow-sm whitespace-nowrap"
+                  >
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={manualCode}
+                        onChange={(e) => setManualCode(e.target.value)}
+                        placeholder="Paste OAuth code..."
+                        className="w-full bg-zinc-50 border border-zinc-200 rounded-md py-1.5 pl-2 pr-7 text-xs focus:outline-none focus:border-zinc-900 transition-colors"
                         disabled={isPending}
-                        >
-                        Verify
-                        </button>
-                    </form>
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowManualCode(false)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-1 leading-none text-sm"
+                        title="Cancel"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-3 py-1.5 bg-zinc-900 text-white rounded-md text-xs font-medium hover:bg-zinc-800 transition-all disabled:opacity-50 shadow-sm whitespace-nowrap"
+                      disabled={isPending}
+                    >
+                      Verify
+                    </button>
+                  </form>
                 )}
 
-                <button 
-                    onClick={() => setShowPAT(true)}
-                    className="text-[10px] text-zinc-400 hover:text-zinc-600 underline decoration-dotted transition-colors text-center py-2"
+                <button
+                  onClick={() => setShowPAT(true)}
+                  className="text-[10px] text-zinc-400 hover:text-zinc-600 underline decoration-dotted transition-colors text-center py-2"
                 >
-                    Use Personal Access Token instead
+                  Use Personal Access Token instead
                 </button>
               </>
             ) : (
               /* PAT Section */
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4 flex-shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <form
+                onSubmit={handleSubmit}
+                className="flex flex-col gap-4 flex-shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300"
+              >
                 <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 block">
-                        Personal Access Token
-                    </label>
-                    <input
-                      type="password"
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      placeholder="glpat-..."
-                      className={`w-full bg-transparent border-b py-1.5 text-sm focus:outline-none transition-colors ${
-                          errorMessage
-                          ? "border-error text-error placeholder:text-error/50"
-                          : "border-zinc-200 focus:border-zinc-900"
-                      }`}
-                      disabled={isPending}
-                      autoFocus
-                    />
-                    {errorMessage && (
-                    <p className="text-[10px] text-error leading-tight">{errorMessage}</p>
-                    )}
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 block">
+                    Personal Access Token
+                  </label>
+                  <input
+                    type="password"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="glpat-..."
+                    className={`w-full bg-transparent border-b py-1.5 text-sm focus:outline-none transition-colors ${
+                      errorMessage
+                        ? "border-error text-error placeholder:text-error/50"
+                        : "border-zinc-200 focus:border-zinc-900"
+                    }`}
+                    disabled={isPending}
+                    autoFocus
+                  />
+                  {errorMessage && (
+                    <p className="text-[10px] text-error leading-tight">
+                      {errorMessage}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2">
-                    <button
-                        type="submit"
-                        className="w-full py-2.5 bg-zinc-900 text-white rounded-md text-sm font-medium hover:bg-zinc-800 transition-all disabled:opacity-50 shadow-sm"
-                        disabled={isPending}
-                    >
-                        {isVerifying ? (
-                        <span className="loading loading-spinner loading-xs"></span>
-                        ) : (
-                        "Connect with Token"
-                        )}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setShowPAT(false)}
-                        className="text-[10px] text-zinc-400 hover:text-zinc-600 underline decoration-dotted transition-colors text-center py-1"
-                        disabled={isPending}
-                    >
-                        Back to OAuth Login
-                    </button>
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-zinc-900 text-white rounded-md text-sm font-medium hover:bg-zinc-800 transition-all disabled:opacity-50 shadow-sm"
+                    disabled={isPending}
+                  >
+                    {isVerifying ? (
+                      <span className="loading loading-spinner loading-xs"></span>
+                    ) : (
+                      "Connect with Token"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPAT(false)}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-600 underline decoration-dotted transition-colors text-center py-1"
+                    disabled={isPending}
+                  >
+                    Back to OAuth Login
+                  </button>
                 </div>
               </form>
             )}

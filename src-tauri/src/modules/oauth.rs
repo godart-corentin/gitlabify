@@ -6,7 +6,6 @@ use tauri::{AppHandle, State, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::modules::auth::{verify_token, save_token, User};
-use crate::modules::settings::get_gitlab_host;
 
 pub struct OAuthState {
     pub code_verifier: Mutex<Option<String>>,
@@ -26,8 +25,7 @@ pub async fn start_oauth_flow(
         *verifier_state = Some(verifier);
     }
 
-    let host_response = get_gitlab_host(app.clone()).await.map_err(|e| e.to_string())?;
-    let host = host_response.host.ok_or("GitLab host not configured")?;
+    let host = "https://gitlab.com";
 
     // Load configuration from compile-time environment variables
     let client_id = env!("GITLAB_CLIENT_ID");
@@ -35,7 +33,7 @@ pub async fn start_oauth_flow(
 
     let auth_url = format!(
         "{}/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=api+read_user&code_challenge={}&code_challenge_method=S256",
-        host.trim_end_matches('/'),
+        host,
         client_id,
         urlencoding::encode(&redirect_uri),
         challenge
@@ -55,13 +53,12 @@ pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<Use
         verifier_state.take().ok_or("No code verifier found")?
     };
 
-    let host_response = get_gitlab_host(app.clone()).await.map_err(|e| e.to_string())?;
-    let host = host_response.host.ok_or("GitLab host not configured")?;
+    let host = "https://gitlab.com";
 
     let client_id = env!("GITLAB_CLIENT_ID");
     let redirect_uri = "gitlabify://oauth-callback";
 
-    let token_url = format!("{}/oauth/token", host.trim_end_matches('/'));
+    let token_url = format!("{}/oauth/token", host);
 
     let params = [
         ("client_id", client_id),
@@ -91,7 +88,7 @@ pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<Use
         .to_string();
 
     // Verify and save the token
-    let user = verify_token(access_token.clone(), host).await.map_err(|e| {
+    let user = verify_token(app.clone(), access_token.clone()).await.map_err(|e| {
         e.to_string()
     })?;
     save_token(app, access_token).await.map_err(|e| e.to_string())?;

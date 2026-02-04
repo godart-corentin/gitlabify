@@ -5,10 +5,6 @@ export interface User {
   avatarUrl?: string | null;
 }
 
-export interface GitlabHostResponse {
-  host: string | null;
-}
-
 export type AuthErrorType = "invalidToken" | "networkError" | "keychainError";
 
 export interface AuthError {
