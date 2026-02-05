@@ -1,12 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
-export type { User, AuthError } from "./types";
-import type { User } from "./types";
+import { str, nullable } from "sibyl-ts";
+
+import { InboxDataSchema, type InboxData, UserSchema, type User, type AuthError } from "../schemas";
+
+export type { User, AuthError };
 
 /**
  * Verifies a Personal Access Token against a GitLab host.
  */
 export async function verifyToken(token: string): Promise<User> {
-  return await invoke<User>("verify_token", { token });
+  const data = await invoke("verify_token", { token });
+  return UserSchema.judge(data);
 }
 
 /**
@@ -20,7 +24,8 @@ export async function saveToken(token: string): Promise<void> {
  * Gets the saved Personal Access Token from the native keychain.
  */
 export async function getToken(): Promise<string | null> {
-  return await invoke<string | null>("get_token");
+  const data = await invoke("get_token");
+  return nullable(str()).judge(data);
 }
 
 /**
@@ -34,12 +39,22 @@ export async function deleteToken(): Promise<void> {
  * Initiates the GitLab OAuth PKCE flow.
  */
 export async function startOauthFlow(): Promise<string> {
-  return await invoke<string>("start_oauth_flow");
+  const data = await invoke("start_oauth_flow");
+  return str().judge(data);
 }
 
 /**
  * Exchanges an OAuth code for a token and returns the user profile.
  */
 export async function exchangeCodeForToken(code: string): Promise<User> {
-  return await invoke<User>("exchange_code_for_token", { code });
+  const data = await invoke("exchange_code_for_token", { code });
+  return UserSchema.judge(data);
+}
+
+/**
+ * Gets the current inbox data (MRs, Todos, Pipelines) from the backend state.
+ */
+export async function getInbox(): Promise<InboxData | null> {
+  const data = await invoke("get_inbox");
+  return nullable(InboxDataSchema).judge(data);
 }

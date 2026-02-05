@@ -27,6 +27,12 @@ pub struct MergeRequest {
     pub author: Author,
     pub has_conflicts: bool,
     pub blocking_discussions_resolved: bool,
+    #[serde(alias = "pipeline")]
+    pub head_pipeline: Option<Pipeline>,
+    #[serde(default)]
+    pub draft: bool,
+    #[serde(default)]
+    pub work_in_progress: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -38,6 +44,7 @@ pub struct Todo {
     pub action_name: String,
     pub target_type: String,
     pub target_url: Option<String>,
+    pub target: Option<MergeRequest>,
     pub body: Option<String>,
     pub state: String,
     pub created_at: String,
@@ -56,6 +63,14 @@ pub struct Pipeline {
     pub web_url: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct InboxData {
+    pub merge_requests: Vec<MergeRequest>,
+    pub todos: Vec<Todo>,
+    pub pipelines: Vec<Pipeline>,
 }
 
 pub struct GitLabClient {
@@ -102,17 +117,28 @@ impl GitLabClient {
         Ok(Self { client, host, token })
     }
 
-    pub async fn fetch_merge_requests(&self) -> Result<Vec<MergeRequest>, GitLabError> {
-        let reviewer_url = format!("{}/api/v4/merge_requests?scope=all&state=opened&reviewer_id=me", self.host);
-        let assignee_url = format!("{}/api/v4/merge_requests?scope=all&state=opened&assignee_id=me", self.host);
+    pub async fn fetch_current_user(&self) -> Result<Author, GitLabError> {
+        let url = format!("{}/api/v4/user", self.host);
+        self.get_json::<Author>(&url).await
+    }
 
-        let (reviewer_res, assignee_res) = tokio::join!(
+    pub async fn fetch_merge_requests(&self) -> Result<(Vec<MergeRequest>, u64), GitLabError> {
+        let user = self.fetch_current_user().await?;
+        let user_id = user.id;
+
+        let reviewer_url = format!("{}/api/v4/merge_requests?scope=all&state=opened&reviewer_id={}", self.host, user_id);
+        let assignee_url = format!("{}/api/v4/merge_requests?scope=all&state=opened&assignee_id={}", self.host, user_id);
+        let author_url = format!("{}/api/v4/merge_requests?scope=all&state=opened&author_id={}", self.host, user_id);
+
+        let (reviewer_res, assignee_res, author_res) = tokio::join!(
             self.get_json::<Vec<MergeRequest>>(&reviewer_url),
-            self.get_json::<Vec<MergeRequest>>(&assignee_url)
+            self.get_json::<Vec<MergeRequest>>(&assignee_url),
+            self.get_json::<Vec<MergeRequest>>(&author_url)
         );
 
         let mut all_mrs = reviewer_res?;
         let assignee_mrs = assignee_res?;
+        let author_mrs = author_res?;
 
         let mut seen_ids: HashSet<u64> = all_mrs.iter().map(|mr| mr.id).collect();
 
@@ -122,14 +148,35 @@ impl GitLabClient {
             }
         }
 
-        Ok(all_mrs)
+        for mr in author_mrs {
+            if seen_ids.insert(mr.id) {
+                all_mrs.push(mr);
+            }
+        }
+
+        Ok((all_mrs, user_id))
     }
 
     pub async fn fetch_todos(&self) -> Result<Vec<Todo>, GitLabError> {
-        let url = format!("{}/api/v4/todos?state=pending", self.host);
-        self.get_json::<Vec<Todo>>(&url).await
+        let url = format!("{}/api/v4/todos?state=pending&type=MergeRequest", self.host);
+        let todos = self.get_json::<Vec<Todo>>(&url).await?;
+
+        // Filter: Only opened MRs
+        let filtered_todos = todos.into_iter().filter(|todo| {
+            if let Some(target) = &todo.target {
+                let is_opened = target.state == "opened";
+                // We keep todos even for drafts if they are mentions or comments,
+                // but we might want to be careful. For now, let's allow all pending todos on opened MRs.
+                is_opened
+            } else {
+                false
+            }
+        }).collect();
+
+        Ok(filtered_todos)
     }
 
+    #[allow(dead_code)]
     pub async fn fetch_pipelines(&self) -> Result<Vec<Pipeline>, GitLabError> {
         // Fetch pipelines for the current user
         let url = format!("{}/api/v4/pipelines?scope=branches", self.host);
@@ -141,17 +188,44 @@ impl GitLabClient {
     }
 
     async fn get_json<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T, GitLabError> {
-        let response = self.client
-            .get(url)
-            .bearer_auth(&self.token)
-            .send()
-            .await?;
+        let max_retries = 3;
+        let mut attempt = 0;
 
-        match response.status() {
-            StatusCode::OK => Ok(response.json::<T>().await?),
-            StatusCode::UNAUTHORIZED => Err(GitLabError::Unauthorized),
-            StatusCode::TOO_MANY_REQUESTS => Err(GitLabError::RateLimited),
-            s => Err(GitLabError::Api(format!("Status: {}", s))),
+        loop {
+            attempt += 1;
+            let request = self.client.get(url).bearer_auth(&self.token);
+            
+            match request.send().await {
+                Ok(response) => {
+                    let status = response.status();
+                    if status.is_success() {
+                        return response.json::<T>().await.map_err(GitLabError::Network);
+                    } else if status.is_server_error() {
+                        if attempt < max_retries {
+                            tokio::time::sleep(Duration::from_millis(500 * attempt)).await;
+                            continue;
+                        }
+                    }
+
+                    // Client error or exhausted retries
+                    let body = response.text().await.unwrap_or_else(|_| "Could not read response body".to_string());
+                    
+                    if status == StatusCode::UNAUTHORIZED {
+                        return Err(GitLabError::Unauthorized);
+                    } else if status == StatusCode::TOO_MANY_REQUESTS {
+                        return Err(GitLabError::RateLimited);
+                    } else {
+                        return Err(GitLabError::Api(format!("Status: {} - Body: {}", status, body)));
+                    }
+                },
+                Err(e) => {
+                    if attempt < max_retries {
+                        tokio::time::sleep(Duration::from_millis(500 * attempt)).await;
+                        continue;
+                    }
+                    return Err(GitLabError::Network(e));
+                }
+            }
         }
     }
 }

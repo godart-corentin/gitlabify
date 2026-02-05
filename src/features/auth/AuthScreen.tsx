@@ -2,7 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
-import { isAuthError } from "../../lib/types";
+import { AuthErrorSchema } from "../../schemas";
 
 interface AuthScreenProps {
   onComplete: () => void;
@@ -118,9 +118,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     const error = authError || verifyError;
     if (!error) return null;
 
-    if (isAuthError(error)) {
-      if (error.type === "invalidToken") return "Invalid Personal Access Token";
-      return error.message || "Authentication failed";
+    const judgmentResult = AuthErrorSchema.tryJudge(error);
+
+    if (judgmentResult.type === "success") {
+      if (judgmentResult.data.type === "invalidToken") return "Invalid Personal Access Token";
+      return judgmentResult.data.message || "Authentication failed";
     }
 
     if (error instanceof Error) return error.message;
