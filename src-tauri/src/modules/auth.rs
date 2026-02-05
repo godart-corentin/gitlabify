@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use tauri_plugin_keyring::KeyringExt;
 
+use crate::modules::constants::{GITLAB_HOST, SERVICE_NAME, PAT_KEY};
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
@@ -31,9 +33,6 @@ impl std::fmt::Display for AuthError {
 
 impl std::error::Error for AuthError {}
 
-const SERVICE_NAME: &str = "gitlabify";
-const PAT_KEY: &str = "private-token";
-
 #[tauri::command]
 pub async fn verify_token<R: tauri::Runtime>(
     _app: tauri::AppHandle<R>,
@@ -46,8 +45,7 @@ pub async fn verify_token<R: tauri::Runtime>(
         .build()
         .map_err(|_e| AuthError::NetworkError("Failed to initialize network client".to_string()))?;
 
-    let host = "https://gitlab.com";
-    let url = format!("{}/api/v4/user", host);
+    let url = format!("{}/api/v4/user", GITLAB_HOST);
 
     println!("Backend: sending request to {}", url);
     let response = client

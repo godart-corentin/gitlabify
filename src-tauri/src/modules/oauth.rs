@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::modules::auth::{save_token, verify_token, User};
+use crate::modules::constants::GITLAB_HOST;
 
 pub struct OAuthState {
     pub code_verifier: Mutex<Option<String>>,
@@ -21,11 +22,10 @@ pub async fn start_oauth_flow(
 
     // Store verifier in state
     {
-        let mut verifier_state = state.code_verifier.lock().map_err(|e| e.to_string())?;
+        let mut verifier_state = state.code_verifier.lock().expect("OAuthState mutex poisoned");
         *verifier_state = Some(verifier);
     }
 
-    let host = "https://gitlab.com";
 
     // Load configuration from compile-time environment variables
     let client_id = env!("GITLAB_CLIENT_ID");
@@ -33,7 +33,7 @@ pub async fn start_oauth_flow(
 
     let auth_url = format!(
         "{}/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=api+read_user&code_challenge={}&code_challenge_method=S256",
-        host,
+        GITLAB_HOST,
         client_id,
         urlencoding::encode(redirect_uri),
         challenge
@@ -51,16 +51,14 @@ pub async fn start_oauth_flow(
 pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<User, String> {
     let verifier = {
         let state = app.state::<OAuthState>();
-        let mut verifier_state = state.code_verifier.lock().unwrap();
+        let mut verifier_state = state.code_verifier.lock().expect("OAuthState mutex poisoned");
         verifier_state.take().ok_or("No code verifier found")?
     };
-
-    let host = "https://gitlab.com";
 
     let client_id = env!("GITLAB_CLIENT_ID");
     let redirect_uri = "gitlabify://oauth-callback";
 
-    let token_url = format!("{}/oauth/token", host);
+    let token_url = format!("{}/oauth/token", GITLAB_HOST);
 
     let params = [
         ("client_id", client_id),
@@ -80,7 +78,7 @@ pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<Use
         .map_err(|e| format!("Request failed: {}", e))?;
 
     if !response.status().is_success() {
-        let error_text = response.text().await.unwrap_or_default();
+        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
         return Err(format!("Token exchange failed: {}", error_text));
     }
 

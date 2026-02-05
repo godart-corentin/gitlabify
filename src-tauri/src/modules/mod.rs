@@ -2,6 +2,8 @@
 // This directory will contain modules like auth, gitlab, inbox, etc.
 
 pub mod auth;
+pub mod constants;
+pub mod gitlab;
 pub mod inbox;
 pub mod oauth;
 pub mod tray;
