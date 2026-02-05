@@ -1,5 +1,6 @@
 use crate::modules::window_controls::toggle_window;
 use image::{GenericImage, GenericImageView, Rgba};
+use std::sync::OnceLock;
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -7,19 +8,25 @@ use tauri::{
     AppHandle, Runtime,
 };
 
-#[allow(dead_code)]
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("../../icons/tray-icon.png");
 
-#[allow(dead_code)]
+static BASE_IMAGE: OnceLock<image::DynamicImage> = OnceLock::new();
+
 pub enum TrayStatus {
     Idle,
+    #[allow(dead_code)]
     Info,
+    #[allow(dead_code)]
     Error,
 }
 
 #[allow(dead_code)]
 fn generate_tray_icon(status: TrayStatus) -> Option<Image<'static>> {
-    let mut img = image::load_from_memory(TRAY_ICON_BYTES).ok()?;
+    let base_img = BASE_IMAGE.get_or_init(|| {
+        image::load_from_memory(TRAY_ICON_BYTES).expect("Failed to load tray icon bytes")
+    });
+
+    let mut img = base_img.clone();
 
     match status {
         TrayStatus::Idle => {} // Return clean logo
@@ -59,7 +66,9 @@ fn generate_tray_icon(status: TrayStatus) -> Option<Image<'static>> {
 #[allow(dead_code)]
 pub fn update_badge<R: Runtime>(app: &AppHandle<R>, count: usize, has_failure: bool) {
     if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_tooltip(Some(format_tooltip(count)));
+        if let Err(e) = tray.set_tooltip(Some(format_tooltip(has_failure))) {
+            eprintln!("Failed to set tray tooltip: {}", e);
+        }
 
         let status = if has_failure {
             TrayStatus::Error
@@ -70,7 +79,9 @@ pub fn update_badge<R: Runtime>(app: &AppHandle<R>, count: usize, has_failure: b
         };
 
         if let Some(icon) = generate_tray_icon(status) {
-            let _ = tray.set_icon(Some(icon));
+            if let Err(e) = tray.set_icon(Some(icon)) {
+                eprintln!("Failed to set tray icon: {}", e);
+            }
         }
 
         #[cfg(target_os = "macos")]
@@ -112,16 +123,20 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray:
             }
         });
 
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone());
+    if let Some(icon) = generate_tray_icon(TrayStatus::Idle) {
+        builder = builder.icon(icon);
     }
 
     builder.build(app)
 }
 
 #[allow(dead_code)]
-pub fn format_tooltip(_count: usize) -> String {
-    "Gitlabify".to_string()
+pub fn format_tooltip(is_offline: bool) -> String {
+    if is_offline {
+        "Gitlabify (Offline)".to_string()
+    } else {
+        "Gitlabify".to_string()
+    }
 }
 
 #[cfg(test)]
@@ -130,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_format_tooltip() {
-        assert_eq!(format_tooltip(0), "Gitlabify");
-        assert_eq!(format_tooltip(5), "Gitlabify");
+        assert_eq!(format_tooltip(false), "Gitlabify");
+        assert_eq!(format_tooltip(true), "Gitlabify (Offline)");
     }
 }

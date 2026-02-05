@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use tauri::{Emitter, Listener, Manager};
 
 use modules::auth::{delete_token, get_token, save_token, verify_token};
+use modules::inbox::InboxState;
 use modules::oauth::{exchange_code_for_token, start_oauth_flow, OAuthState};
 use modules::window_controls::toggle_window;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
@@ -38,6 +39,7 @@ pub fn run() {
         .manage(OAuthState {
             code_verifier: Mutex::new(None),
         })
+        .manage(InboxState::new())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

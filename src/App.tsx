@@ -1,8 +1,22 @@
+import { listen } from "@tauri-apps/api/event";
+import { useEffect, useState } from "react";
+
 import { AuthScreen } from "./features/auth/AuthScreen";
 import { useAuth } from "./hooks/useAuth";
 
 function App() {
   const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuth();
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    const unlisten = listen<boolean>("connection-status-changed", (event) => {
+      setIsOffline(event.payload);
+    });
+
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
 
   const isLoading = isLoadingToken || isLoadingUser;
 
@@ -24,7 +38,14 @@ function App() {
         <header className="flex items-center justify-between mb-4 flex-shrink-0 relative z-50">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🦊</span>
-            <h1 className="text-lg font-semibold tracking-tight">gitlabify</h1>
+            <div className="flex flex-col leading-tight">
+              <h1 className="text-lg font-semibold tracking-tight">gitlabify</h1>
+              {isOffline && (
+                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-tighter">
+                  Offline
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
