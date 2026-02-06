@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri_plugin_keyring::KeyringExt;
 
 use crate::modules::constants::{GITLAB_HOST, SERVICE_NAME, PAT_KEY};
+use crate::modules::inbox::trigger_poll;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -105,6 +106,8 @@ pub async fn save_token<R: tauri::Runtime>(
             println!("Backend: save_token error: {}", e);
             AuthError::KeychainError(e.to_string())
         })?;
+
+    trigger_poll(&app);
     Ok(())
 }
 

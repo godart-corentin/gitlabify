@@ -4,12 +4,16 @@ import { useEffect, useState } from "react";
 import { AuthScreen } from "./features/auth/AuthScreen";
 import { Dashboard } from "./features/inbox/Dashboard";
 import { useAuth } from "./hooks/useAuth";
+import { getConnectionStatus } from "./lib/commands";
 
 function App() {
   const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuth();
   const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
+    // Sync initial status
+    getConnectionStatus().then(setIsOffline);
+
     const unlisten = listen<boolean>("connection-status-changed", (event) => {
       setIsOffline(event.payload);
     });

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { str, nullable } from "sibyl-ts";
+import { str, nullable, bool } from "sibyl-ts";
 
 import { InboxDataSchema, type InboxData, UserSchema, type User, type AuthError } from "../schemas";
 
@@ -57,4 +57,19 @@ export async function exchangeCodeForToken(code: string): Promise<User> {
 export async function getInbox(): Promise<InboxData | null> {
   const data = await invoke("get_inbox");
   return nullable(InboxDataSchema).judge(data);
+}
+
+/**
+ * Gets the current connection status (true if offline).
+ */
+export async function getConnectionStatus(): Promise<boolean> {
+  const data = await invoke("get_connection_status");
+  return bool().judge(data);
+}
+
+/**
+ * Manually triggers an inbox refresh.
+ */
+export async function refreshInbox(): Promise<void> {
+  await invoke("refresh_inbox");
 }

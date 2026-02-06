@@ -1,10 +1,11 @@
 use crate::modules::tray::update_badge;
 use crate::modules::gitlab::{GitLabClient, InboxData};
 use crate::modules::constants::{GITLAB_HOST, SERVICE_NAME, PAT_KEY, CONSECUTIVE_FAILURE_THRESHOLD, POLLING_INTERVAL_SECONDS};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_keyring::KeyringExt;
+use tokio::sync::Notify;
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -20,6 +21,7 @@ pub struct InboxState {
     pub consecutive_failures: Mutex<usize>,
     pub data: Mutex<Option<InboxData>>,
     pub last_error: Mutex<Option<String>>,
+    pub poll_now: Arc<Notify>,
 }
 
 impl InboxState {
@@ -30,6 +32,7 @@ impl InboxState {
             consecutive_failures: Mutex::new(0),
             data: Mutex::new(None),
             last_error: Mutex::new(None),
+            poll_now: Arc::new(Notify::new()),
         }
     }
 
@@ -159,20 +162,46 @@ pub fn update_count<R: Runtime>(app: &AppHandle<R>, count: usize) {
     }
 }
 
+pub fn trigger_poll<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<InboxState>();
+    state.poll_now.notify_one();
+}
+
 #[tauri::command]
 pub fn get_inbox(state: tauri::State<InboxState>) -> Option<InboxData> {
     let data = state.data.lock().expect("InboxState data mutex poisoned");
     data.clone()
 }
 
+#[tauri::command]
+pub fn get_connection_status(state: tauri::State<InboxState>) -> bool {
+    let status = state.status.lock().expect("InboxState status mutex poisoned");
+    *status == ConnectionStatus::Offline
+}
+
+#[tauri::command]
+pub fn refresh_inbox(app: AppHandle) {
+    trigger_poll(&app);
+}
+
 pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
     let app_handle = app.clone();
+    let poll_now = app.state::<InboxState>().poll_now.clone();
     
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(POLLING_INTERVAL_SECONDS));
         
         loop {
-            interval.tick().await;
+            tokio::select! {
+                _ = interval.tick() => {
+                    // Standard interval poll
+                }
+                _ = poll_now.notified() => {
+                    // Manual poll requested
+                    println!("Manual poll triggered");
+                    interval.reset();
+                }
+            }
             
             // 1. Host is fixed for MVP
             let host = GITLAB_HOST.to_string();
