@@ -1,6 +1,6 @@
 import { clsx } from "clsx";
 import { Inbox, GitMerge, Rocket, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useInbox } from "../../hooks/useInbox";
@@ -8,11 +8,16 @@ import { refreshInbox } from "../../lib/commands";
 
 import { InboxList } from "./InboxList";
 
+export const REFRESH_SPINNER_MIN_MS = 500;
+
+type DashboardFilter = "notifications" | "mrs" | "pipelines";
+
 export function Dashboard() {
   const { data, isLoading, error } = useInbox();
   const { user } = useAuth();
-  const [filter, setFilter] = useState<"notifications" | "mrs" | "pipelines">("notifications");
+  const [filter, setFilter] = useState<DashboardFilter>("notifications");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshTimeoutIdRef = useRef<number | null>(null);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -22,9 +27,31 @@ export function Dashboard() {
       // to show a loading state if preferred, though the event-driven approach is smoother.
     } finally {
       // Small delay to make the rotation visible if it's too fast
-      setTimeout(() => setIsRefreshing(false), 500);
+      if (refreshTimeoutIdRef.current !== null) {
+        window.clearTimeout(refreshTimeoutIdRef.current);
+      }
+      refreshTimeoutIdRef.current = window.setTimeout(() => {
+        setIsRefreshing(false);
+        refreshTimeoutIdRef.current = null;
+      }, REFRESH_SPINNER_MIN_MS);
     }
   };
+
+  const handleTabClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const tabId = event.currentTarget.dataset.tabId as DashboardFilter | undefined;
+    if (!tabId) {
+      return;
+    }
+    setFilter(tabId);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutIdRef.current !== null) {
+        window.clearTimeout(refreshTimeoutIdRef.current);
+      }
+    };
+  }, []);
 
   // Initialize authorFilter to current user once user is loaded
   const currentUsername = user?.username;
@@ -34,7 +61,7 @@ export function Dashboard() {
   }
 
   const tabs: {
-    id: "notifications" | "mrs" | "pipelines";
+    id: DashboardFilter;
     label: string;
     shortLabel: string;
     icon: React.ReactNode;
@@ -68,7 +95,8 @@ export function Dashboard() {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setFilter(tab.id)}
+                data-tab-id={tab.id}
+                onClick={handleTabClick}
                 title={tab.label}
                 className={clsx(
                   "h-8 px-2.5 rounded-md transition-all duration-200 flex items-center justify-center gap-2 overflow-hidden",

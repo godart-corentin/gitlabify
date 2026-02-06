@@ -5,6 +5,8 @@ import { useEffect } from "react";
 import { getInbox } from "../lib/commands";
 import type { InboxData } from "../schemas";
 
+const INBOX_CACHE_TTL_MS = 1000 * 60 * 30;
+
 export const useInbox = () => {
   const queryClient = useQueryClient();
 
@@ -12,7 +14,7 @@ export const useInbox = () => {
     queryKey: ["inbox"],
     queryFn: getInbox,
     staleTime: Infinity, // Data is pushed via events
-    gcTime: 1000 * 60 * 30, // 30 mins
+    gcTime: INBOX_CACHE_TTL_MS,
   });
 
   useEffect(() => {

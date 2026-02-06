@@ -7,6 +7,16 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_keyring::KeyringExt;
 use tokio::sync::Notify;
 
+fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, label: &str) -> std::sync::MutexGuard<'a, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Poisoned mutex: {}. Recovering inner value.", label);
+            poisoned.into_inner()
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,9 +49,9 @@ impl InboxState {
     /// Updates the state based on polling success/failure.
     /// Returns (status_changed, is_offline, count)
     pub fn update(&self, success: bool) -> (bool, bool, usize) {
-        let mut status = self.status.lock().expect("InboxState status mutex poisoned");
-        let mut failures = self.consecutive_failures.lock().expect("InboxState failures mutex poisoned");
-        let count = *self.unread_count.lock().expect("InboxState count mutex poisoned");
+        let mut status = lock_or_recover(&self.status, "InboxState status");
+        let mut failures = lock_or_recover(&self.consecutive_failures, "InboxState failures");
+        let count = *lock_or_recover(&self.unread_count, "InboxState count");
         let mut changed = false;
 
         if success {
@@ -51,7 +61,7 @@ impl InboxState {
                 changed = true;
             }
             // Clear error on success
-            *self.last_error.lock().expect("InboxState last_error mutex poisoned") = None;
+            *lock_or_recover(&self.last_error, "InboxState last_error") = None;
         } else {
             *failures += 1;
             // Check for threshold
@@ -65,8 +75,8 @@ impl InboxState {
     }
 
     pub fn set_count(&self, new_count: usize) -> (bool, bool, usize) {
-        let mut count = self.unread_count.lock().expect("InboxState count mutex poisoned");
-        let status = self.status.lock().expect("InboxState status mutex poisoned");
+        let mut count = lock_or_recover(&self.unread_count, "InboxState count");
+        let status = lock_or_recover(&self.status, "InboxState status");
         let is_offline = *status == ConnectionStatus::Offline;
 
         if *count != new_count {
@@ -77,12 +87,12 @@ impl InboxState {
     }
 
     pub fn set_data(&self, new_data: InboxData) {
-        let mut data = self.data.lock().expect("InboxState data mutex poisoned");
+        let mut data = lock_or_recover(&self.data, "InboxState data");
         *data = Some(new_data);
     }
 
     pub fn set_error(&self, error: String) {
-        let mut last_error = self.last_error.lock().expect("InboxState last_error mutex poisoned");
+        let mut last_error = lock_or_recover(&self.last_error, "InboxState last_error");
         *last_error = Some(error);
     }
 }
@@ -169,13 +179,13 @@ pub fn trigger_poll<R: Runtime>(app: &AppHandle<R>) {
 
 #[tauri::command]
 pub fn get_inbox(state: tauri::State<InboxState>) -> Option<InboxData> {
-    let data = state.data.lock().expect("InboxState data mutex poisoned");
+    let data = lock_or_recover(&state.data, "InboxState data");
     data.clone()
 }
 
 #[tauri::command]
 pub fn get_connection_status(state: tauri::State<InboxState>) -> bool {
-    let status = state.status.lock().expect("InboxState status mutex poisoned");
+    let status = lock_or_recover(&state.status, "InboxState status");
     *status == ConnectionStatus::Offline
 }
 
@@ -203,7 +213,6 @@ pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
                 _ = poll_now.notified() => {
                     // Manual poll requested
                     println!("Manual poll triggered");
-                    interval.reset();
                 }
             }
             
