@@ -107,6 +107,10 @@ export function useAuth() {
       queryClient.setQueryData(["auth-token"], null);
       queryClient.setQueryData(["auth-user"], null);
     },
+    onError: () => {
+      queryClient.setQueryData(["auth-token"], null);
+      queryClient.setQueryData(["auth-user"], null);
+    },
   });
 
   const authError =

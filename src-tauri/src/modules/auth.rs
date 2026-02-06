@@ -138,8 +138,12 @@ pub async fn get_token<R: tauri::Runtime>(
 
 #[tauri::command]
 pub async fn delete_token<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), AuthError> {
-    app.keyring()
-        .delete_password(SERVICE_NAME, PAT_KEY)
-        .map_err(|e| AuthError::KeychainError(e.to_string()))?;
+    if let Err(e) = app.keyring().delete_password(SERVICE_NAME, PAT_KEY) {
+        let err_str = e.to_string();
+        if err_str.to_lowercase().contains("not found") {
+            return Ok(());
+        }
+        return Err(AuthError::KeychainError(err_str));
+    }
     Ok(())
 }

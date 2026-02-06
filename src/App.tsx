@@ -9,6 +9,7 @@ import { getConnectionStatus } from "./lib/commands";
 function App() {
   const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuth();
   const [isOffline, setIsOffline] = useState(false);
+  const handleLogout = () => logout();
 
   useEffect(() => {
     // Sync initial status
@@ -23,6 +24,16 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const unlisten = listen("auth-required", () => {
+      logout();
+    });
+
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [logout]);
+
   const isLoading = isLoadingToken || isLoadingUser;
 
   if (isLoading) {
@@ -34,7 +45,7 @@ function App() {
   }
 
   if (!isAuthenticated || !user) {
-    return <AuthScreen onComplete={() => {}} />;
+    return <AuthScreen />;
   }
 
   return (
@@ -73,7 +84,7 @@ function App() {
           </div>
 
           <button
-            onClick={() => logout()}
+            onClick={handleLogout}
             className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer border-l border-zinc-800 pl-3"
           >
             Sign out

@@ -391,6 +391,13 @@ pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
                     cached_token = None;
                     cached_client = None;
                     app_handle.state::<InboxState>().set_error("Unauthorized".to_string());
+                    if let Err(e) = app_handle
+                        .keyring()
+                        .delete_password(SERVICE_NAME, PAT_KEY)
+                    {
+                        eprintln!("Failed to delete token from keyring: {}", e);
+                    }
+                    let _ = app_handle.emit("auth-required", ());
                     update_connection_status(&app_handle, false);
                     continue; // Skip the rest, retry next loop
                 }

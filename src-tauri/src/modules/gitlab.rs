@@ -36,6 +36,10 @@ pub struct MergeRequest {
     pub draft: bool,
     #[serde(default)]
     pub work_in_progress: bool,
+    #[serde(default)]
+    pub is_reviewer: bool,
+    #[serde(default)]
+    pub approved_by_me: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -76,11 +80,32 @@ pub struct InboxData {
     pub pipelines: Vec<Pipeline>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub struct ApprovalUser {
+    pub id: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub struct ApprovalEntry {
+    pub user: ApprovalUser,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub struct MergeRequestApprovals {
+    pub approved_by: Vec<ApprovalEntry>,
+}
+
 pub struct GitLabClient {
     client: Client,
     host: String,
     token: String,
 }
+
+const MERGE_REQUEST_PATH_SEGMENT: &str = "/merge_requests/";
+const MERGE_REQUEST_PATH_SEPARATOR: &str = "/-/merge_requests/";
 
 #[derive(Debug)]
 pub enum GitLabError {
@@ -139,7 +164,12 @@ impl GitLabClient {
             self.get_json::<Vec<MergeRequest>>(&author_url)
         );
 
-        let mut all_mrs = reviewer_res?;
+        let mut reviewer_mrs = reviewer_res?;
+        for mr in &mut reviewer_mrs {
+            mr.is_reviewer = true;
+        }
+
+        let mut all_mrs = reviewer_mrs;
         let assignee_mrs = assignee_res?;
         let author_mrs = author_res?;
 
@@ -157,24 +187,98 @@ impl GitLabClient {
             }
         }
 
+        for mr in &mut all_mrs {
+            if !mr.is_reviewer {
+                continue;
+            }
+            match self
+                .fetch_merge_request_approvals(mr.project_id, mr.iid)
+                .await
+            {
+                Ok(approvals) => {
+                    mr.approved_by_me = approvals
+                        .approved_by
+                        .iter()
+                        .any(|entry| entry.user.id == user_id);
+                }
+                Err(GitLabError::Unauthorized) => {
+                    return Err(GitLabError::Unauthorized);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Approvals fetch error for MR {} (project {}): {}",
+                        mr.iid, mr.project_id, e
+                    );
+                }
+            }
+        }
+
         Ok((all_mrs, user))
     }
 
     pub async fn fetch_todos(&self) -> Result<Vec<Todo>, GitLabError> {
         let url = format!("{}/api/v4/todos?state=pending&type=MergeRequest", self.host);
-        let todos = self.get_json::<Vec<Todo>>(&url).await?;
+        let mut todos = self.get_json::<Vec<Todo>>(&url).await?;
+
+        for todo in &mut todos {
+            if todo.target.is_some() {
+                continue;
+            }
+
+            if todo.target_type != "MergeRequest" {
+                continue;
+            }
+
+            let Some(target_url) = todo.target_url.as_deref() else {
+                continue;
+            };
+
+            let Some(iid) = extract_merge_request_iid(target_url) else {
+                continue;
+            };
+
+            let project = resolve_project_ref(todo.project_id, target_url);
+
+            let Some(project) = project else {
+                continue;
+            };
+
+            let res = match project {
+                ProjectRef::Id(id) => self.fetch_merge_request(id, iid).await,
+                ProjectRef::Path(path) => self.fetch_merge_request_by_path(&path, iid).await,
+            };
+
+            match res {
+                Ok(mr) => {
+                    todo.target = Some(mr);
+                }
+                Err(GitLabError::Unauthorized) => {
+                    return Err(GitLabError::Unauthorized);
+                }
+                Err(e) => {
+                    eprintln!("Failed to resolve todo target MR (iid {}): {}", iid, e);
+                }
+            }
+        }
 
         // Filter: Only opened MRs
-        let filtered_todos = todos.into_iter().filter(|todo| {
-            if let Some(target) = &todo.target {
-                let is_opened = target.state == "opened";
-                // We keep todos even for drafts if they are mentions or comments,
-                // but we might want to be careful. For now, let's allow all pending todos on opened MRs.
-                is_opened
-            } else {
+        let filtered_todos = todos
+            .into_iter()
+            .filter(|todo| {
+                if let Some(target) = &todo.target {
+                    let is_opened = target.state == "opened";
+                    // We keep todos even for drafts if they are mentions or comments,
+                    // but we might want to be careful. For now, let's allow all pending todos on opened MRs.
+                    return is_opened;
+                }
+
+                if let Some(target_url) = &todo.target_url {
+                    return is_comment_or_mention_action(&todo.action_name) && !target_url.is_empty();
+                }
+
                 false
-            }
-        }).collect();
+            })
+            .collect();
 
         Ok(filtered_todos)
     }
@@ -209,6 +313,43 @@ impl GitLabClient {
 
         let pipelines = self.get_json::<Vec<Pipeline>>(url.as_str()).await?;
         Ok(pipelines.into_iter().next())
+    }
+
+    pub async fn fetch_merge_request(
+        &self,
+        project_id: u64,
+        merge_request_iid: u64,
+    ) -> Result<MergeRequest, GitLabError> {
+        let url = format!(
+            "{}/api/v4/projects/{}/merge_requests/{}",
+            self.host, project_id, merge_request_iid
+        );
+        self.get_json::<MergeRequest>(&url).await
+    }
+
+    pub async fn fetch_merge_request_by_path(
+        &self,
+        project_path: &str,
+        merge_request_iid: u64,
+    ) -> Result<MergeRequest, GitLabError> {
+        let encoded = urlencoding::encode(project_path);
+        let url = format!(
+            "{}/api/v4/projects/{}/merge_requests/{}",
+            self.host, encoded, merge_request_iid
+        );
+        self.get_json::<MergeRequest>(&url).await
+    }
+
+    pub async fn fetch_merge_request_approvals(
+        &self,
+        project_id: u64,
+        merge_request_iid: u64,
+    ) -> Result<MergeRequestApprovals, GitLabError> {
+        let url = format!(
+            "{}/api/v4/projects/{}/merge_requests/{}/approvals",
+            self.host, project_id, merge_request_iid
+        );
+        self.get_json::<MergeRequestApprovals>(&url).await
     }
 
     async fn get_json<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T, GitLabError> {
@@ -252,6 +393,45 @@ impl GitLabClient {
             }
         }
     }
+}
+
+enum ProjectRef {
+    Id(u64),
+    Path(String),
+}
+
+fn is_comment_or_mention_action(action_name: &str) -> bool {
+    action_name.eq_ignore_ascii_case("commented")
+        || action_name.eq_ignore_ascii_case("mentioned")
+        || action_name.eq_ignore_ascii_case("directly_addressed")
+}
+
+fn extract_merge_request_iid(target_url: &str) -> Option<u64> {
+    let start_index = target_url.find(MERGE_REQUEST_PATH_SEGMENT)?;
+    let start = start_index + MERGE_REQUEST_PATH_SEGMENT.len();
+    let rest = &target_url[start..];
+    let iid_str = rest.split(['/', '?', '#']).next()?;
+    iid_str.parse::<u64>().ok()
+}
+
+fn extract_project_path(target_url: &str) -> Option<String> {
+    let url = Url::parse(target_url).ok()?;
+    let path = url.path();
+    let split_index = path.find(MERGE_REQUEST_PATH_SEPARATOR)?;
+    let project_path = &path[1..split_index];
+    if project_path.is_empty() {
+        return None;
+    }
+    Some(project_path.to_string())
+}
+
+fn resolve_project_ref(project_id: Option<u64>, target_url: &str) -> Option<ProjectRef> {
+    if let Some(id) = project_id {
+        return Some(ProjectRef::Id(id));
+    }
+
+    let path = extract_project_path(target_url)?;
+    Some(ProjectRef::Path(path))
 }
 
 #[cfg(test)]

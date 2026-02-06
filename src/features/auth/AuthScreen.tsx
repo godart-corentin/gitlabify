@@ -5,11 +5,10 @@ import { useAuth } from "../../hooks/useAuth";
 import { AuthErrorSchema } from "../../schemas";
 
 interface AuthScreenProps {
-  onComplete: () => void;
   onBack?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = () => {
   const {
     verifyAndSave,
     isVerifying,
@@ -37,7 +36,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
         const code = url.searchParams.get("code");
         if (code) {
           await exchangeCode(code);
-          onComplete();
         }
       } catch (err: unknown) {
         setValidationError(`OAuth Error: ${err instanceof Error ? err.message : "Unknown error"}`);
@@ -47,7 +45,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     return () => {
       unlisten.then((f) => f());
     };
-  }, [exchangeCode, onComplete]);
+  }, [exchangeCode]);
 
   // Poll for token in case authentication happened in another window
   useEffect(() => {
@@ -79,7 +77,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
 
     try {
       await verifyAndSave({ token: trimmedToken });
-      onComplete();
     } catch {
       // already handled by mutation
     }
@@ -95,7 +92,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     }
     try {
       await exchangeCode(trimmedCode);
-      onComplete();
     } catch (err: unknown) {
       setValidationError(err instanceof Error ? err.message : "Failed to verify code");
     }

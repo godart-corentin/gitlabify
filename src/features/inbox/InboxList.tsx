@@ -20,6 +20,10 @@ export function InboxList({
   filter = "notifications",
   currentUsername,
 }: InboxListProps) {
+  const TODO_ACTION_COMMENTED = "commented";
+  const TODO_ACTION_MENTIONED = "mentioned";
+  const TODO_ACTION_DIRECTLY_ADDRESSED = "directly_addressed";
+
   const pipelineItems = useMemo(() => {
     if (!data) return [];
     return [...data.pipelines].sort(
@@ -72,7 +76,15 @@ export function InboxList({
         if (new Date(todo.createdAt) > group.date) {
           group.date = new Date(todo.createdAt);
         }
+        return;
       }
+
+      // Todo without target: keep as its own item (fallback)
+      grouped.set(todo.id, {
+        id: `todo-${todo.id}`,
+        date: new Date(todo.createdAt),
+        todo,
+      });
     });
 
     const result: GroupedItem[] = Array.from(grouped.values());
@@ -82,13 +94,40 @@ export function InboxList({
       const { mr, todo } = item;
 
       const isAuthor = currentUsername && mr?.author.username === currentUsername;
+      const isTodoAuthor = currentUsername && todo?.author.username === currentUsername;
+      const targetMrAuthor = todo?.target?.author.username;
+      const isTargetMrMine = currentUsername && targetMrAuthor === currentUsername;
+      const isTargetMrNotMine =
+        currentUsername && targetMrAuthor && targetMrAuthor !== currentUsername;
+      const isDraft =
+        mr?.draft ||
+        mr?.workInProgress ||
+        mr?.title.startsWith("Draft:") ||
+        mr?.title.startsWith("WIP:");
+      const normalizedAction = todo?.actionName?.toLowerCase();
+      const isCommentTodo = normalizedAction === TODO_ACTION_COMMENTED;
+      const isMentionTodo =
+        normalizedAction === TODO_ACTION_MENTIONED ||
+        normalizedAction === TODO_ACTION_DIRECTLY_ADDRESSED;
 
       // Filter by Tab
       if (filter === "notifications") {
-        // Notifications: Todo exists OR (MR exists and I am NOT the author)
-        // This covers: "someone mentioned me", "received a comment" (via Todos)
-        // and "MR to review" (via being a reviewer/assignee, which the backend returns in mergeRequests if not author)
-        return !!todo || (!!mr && !isAuthor);
+        const needsReview = !!mr && mr.isReviewer && !mr.approvedByMe && !isAuthor && !isDraft;
+        const commentsOnMyMr = !!todo && isCommentTodo && isTargetMrMine && !isTodoAuthor;
+        const repliesToMyComments =
+          !!todo && isCommentTodo && isTargetMrNotMine && !isTodoAuthor;
+        const mentions = !!todo && isMentionTodo && !isTodoAuthor;
+        const hasCommentOrMention = commentsOnMyMr || repliesToMyComments || mentions;
+
+        if (hasCommentOrMention) {
+          return true;
+        }
+
+        if (todo && !todo.target && !isTodoAuthor && (isCommentTodo || isMentionTodo)) {
+          return true;
+        }
+
+        return needsReview;
       }
 
       if (filter === "mrs") {
@@ -157,8 +196,20 @@ export function InboxList({
         }
 
         // 2. Todo Icon
-        if (todo) {
-          icons.push({ type: "todo", status: todo.state });
+        if (todo && filter !== "mrs") {
+          const normalizedAction = todo.actionName.toLowerCase();
+          const isMention =
+            normalizedAction === TODO_ACTION_MENTIONED ||
+            normalizedAction === TODO_ACTION_DIRECTLY_ADDRESSED;
+          const isComment = normalizedAction === TODO_ACTION_COMMENTED;
+
+          if (isMention) {
+            icons.push({ type: "mention", status: todo.state });
+          } else if (isComment) {
+            icons.push({ type: "comment", status: todo.state });
+          } else {
+            icons.push({ type: "todo", status: todo.state });
+          }
         }
 
         // 3. Pipeline Icon
@@ -169,16 +220,32 @@ export function InboxList({
         // Fallback for data (prefer MR, then Todo target)
         const displayData = mr || todo?.target;
 
-        if (!displayData) return null;
+        if (!displayData && (!todo?.targetUrl || !todo?.author)) {
+          return null;
+        }
+
+        const fallbackTitle = todo?.body?.trim();
+        const normalizedAction = todo?.actionName?.toLowerCase();
+        const isMention =
+          normalizedAction === TODO_ACTION_MENTIONED ||
+          normalizedAction === TODO_ACTION_DIRECTLY_ADDRESSED;
+        const title =
+          displayData?.title ||
+          fallbackTitle ||
+          (isMention ? "Mentioned in a merge request" : "New comment on a merge request");
+
+        const author = displayData?.author || todo!.author;
+        const webUrl = displayData?.webUrl || todo!.targetUrl!;
+        const updatedAt = displayData ? item.date.toISOString() : todo!.createdAt;
 
         return (
           <InboxItem
             key={item.id}
             icons={icons}
-            title={displayData.title}
-            author={displayData.author}
-            updatedAt={item.date.toISOString()}
-            webUrl={displayData.webUrl}
+            title={title}
+            author={author}
+            updatedAt={updatedAt}
+            webUrl={webUrl}
           />
         );
       })}

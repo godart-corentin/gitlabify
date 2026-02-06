@@ -2,6 +2,8 @@ import { clsx } from "clsx";
 import {
   GitPullRequest,
   CheckSquare,
+  MessageCircle,
+  AtSign,
   PlayCircle,
   CheckCircle2,
   XCircle,
@@ -10,7 +12,7 @@ import {
   CircleDashed,
 } from "lucide-react";
 
-export type IconType = "merge-request" | "todo" | "pipeline";
+export type IconType = "merge-request" | "todo" | "pipeline" | "comment" | "mention";
 
 interface StatusIconProps {
   type: IconType;
@@ -33,6 +35,14 @@ export function StatusIcon({ type, status, className }: StatusIconProps) {
 
   if (type === "todo") {
     return <CheckSquare className={clsx("text-blue-400", className)} />;
+  }
+
+  if (type === "comment") {
+    return <MessageCircle className={clsx("text-blue-400", className)} />;
+  }
+
+  if (type === "mention") {
+    return <AtSign className={clsx("text-fuchsia-400", className)} />;
   }
 
   if (type === "pipeline") {

@@ -39,6 +39,8 @@ describe("InboxList", () => {
           headPipeline: null,
           draft: false,
           workInProgress: false,
+          isReviewer: true,
+          approvedByMe: false,
         },
       ],
       todos: [],
@@ -69,6 +71,8 @@ describe("InboxList", () => {
           headPipeline: null,
           draft: false,
           workInProgress: false,
+          isReviewer: true,
+          approvedByMe: false,
         },
       ],
       todos: [
@@ -99,6 +103,8 @@ describe("InboxList", () => {
             headPipeline: null,
             draft: false,
             workInProgress: false,
+            isReviewer: true,
+            approvedByMe: false,
           },
         },
       ],
@@ -132,6 +138,8 @@ describe("InboxList", () => {
           headPipeline: null,
           draft: false,
           workInProgress: false,
+          isReviewer: true,
+          approvedByMe: false,
         },
         {
           id: 2,
@@ -150,6 +158,8 @@ describe("InboxList", () => {
           headPipeline: null,
           draft: false,
           workInProgress: false,
+          isReviewer: false,
+          approvedByMe: false,
         },
       ],
       todos: [],
@@ -193,6 +203,161 @@ describe("InboxList", () => {
     );
     // No pipelines in data yet
     expect(screen.getByText("Inbox Zero")).toBeInTheDocument();
+  });
+
+  it("hides reviewer MRs already approved by me", () => {
+    const mockData: InboxData = {
+      mergeRequests: [
+        {
+          id: 10,
+          iid: 10,
+          projectId: 1,
+          sourceBranch: "main",
+          title: "Needs review but already approved",
+          description: "desc",
+          state: "opened",
+          createdAt: "2023-01-01T00:00:00Z",
+          updatedAt: new Date().toISOString(),
+          webUrl: "http://gitlab.com/mr/10",
+          author: { id: 2, name: "Bob", username: "bob", avatarUrl: null },
+          hasConflicts: false,
+          blockingDiscussionsResolved: true,
+          headPipeline: null,
+          draft: false,
+          workInProgress: false,
+          isReviewer: true,
+          approvedByMe: true,
+        },
+      ],
+      todos: [],
+      pipelines: [],
+    };
+
+    render(
+      <InboxList
+        isLoading={false}
+        data={mockData}
+        filter="notifications"
+        currentUsername="alice"
+      />,
+    );
+
+    expect(screen.queryByText("Needs review but already approved")).not.toBeInTheDocument();
+  });
+
+  it("shows comments and mentions even on draft MRs", () => {
+    const mockData: InboxData = {
+      mergeRequests: [],
+      todos: [
+        {
+          id: 200,
+          projectId: 1,
+          author: { id: 2, name: "Bob", username: "bob", avatarUrl: null },
+          actionName: "commented",
+          targetType: "MergeRequest",
+          targetUrl: "http://gitlab.com/mr/200",
+          body: "Looks good",
+          state: "pending",
+          createdAt: new Date().toISOString(),
+          target: {
+            id: 200,
+            iid: 200,
+            projectId: 1,
+            sourceBranch: "main",
+            title: "Draft MR with comment",
+            description: "desc",
+            state: "opened",
+            createdAt: "2023-01-01T00:00:00Z",
+            updatedAt: new Date().toISOString(),
+            webUrl: "http://gitlab.com/mr/200",
+            author: { id: 1, name: "Alice", username: "alice", avatarUrl: null },
+            hasConflicts: false,
+            blockingDiscussionsResolved: true,
+            headPipeline: null,
+            draft: true,
+            workInProgress: false,
+            isReviewer: false,
+            approvedByMe: false,
+          },
+        },
+        {
+          id: 201,
+          projectId: 1,
+          author: { id: 3, name: "Cara", username: "cara", avatarUrl: null },
+          actionName: "mentioned",
+          targetType: "MergeRequest",
+          targetUrl: "http://gitlab.com/mr/201",
+          body: "@alice take a look",
+          state: "pending",
+          createdAt: new Date().toISOString(),
+          target: {
+            id: 201,
+            iid: 201,
+            projectId: 1,
+            sourceBranch: "main",
+            title: "Draft MR with mention",
+            description: "desc",
+            state: "opened",
+            createdAt: "2023-01-01T00:00:00Z",
+            updatedAt: new Date().toISOString(),
+            webUrl: "http://gitlab.com/mr/201",
+            author: { id: 1, name: "Alice", username: "alice", avatarUrl: null },
+            hasConflicts: false,
+            blockingDiscussionsResolved: true,
+            headPipeline: null,
+            draft: true,
+            workInProgress: false,
+            isReviewer: false,
+            approvedByMe: false,
+          },
+        },
+      ],
+      pipelines: [],
+    };
+
+    render(
+      <InboxList
+        isLoading={false}
+        data={mockData}
+        filter="notifications"
+        currentUsername="alice"
+      />,
+    );
+
+    expect(screen.getByText("Draft MR with comment")).toBeInTheDocument();
+    expect(screen.getByText("Draft MR with mention")).toBeInTheDocument();
+  });
+
+  it("shows comment todo even when target is missing", () => {
+    const mockData: InboxData = {
+      mergeRequests: [],
+      todos: [
+        {
+          id: 300,
+          projectId: 1,
+          author: { id: 2, name: "Bob", username: "bob", avatarUrl: null },
+          actionName: "commented",
+          targetType: "MergeRequest",
+          targetUrl: "http://gitlab.com/mr/300",
+          body: "Please check this",
+          state: "pending",
+          createdAt: new Date().toISOString(),
+          target: null,
+        },
+      ],
+      pipelines: [],
+    };
+
+    render(
+      <InboxList
+        isLoading={false}
+        data={mockData}
+        filter="notifications"
+        currentUsername="alice"
+      />,
+    );
+
+    expect(screen.getByText("Please check this")).toBeInTheDocument();
   });
 
   it("renders pipelines view with branch and pipeline id", () => {

@@ -34,6 +34,8 @@ export const MergeRequestSchema = obj({
   headPipeline: nullable(PipelineSchema),
   draft: bool(),
   workInProgress: bool(),
+  isReviewer: bool(),
+  approvedByMe: bool(),
 });
 
 export type MergeRequest = ExtractValidatorType<typeof MergeRequestSchema>;
