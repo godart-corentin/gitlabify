@@ -228,14 +228,70 @@ pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
                         let mut has_success = false;
 
                         match mrs_res {
-                            Ok((fetched_mrs, user_id)) => {
-                                // Extract pipelines from MRs
+                            Ok((fetched_mrs, user)) => {
+                                let user_id = user.id;
+                                // Extract pipelines from the current user's MRs only.
+                                let mut pipeline_ids = HashSet::new();
+                                let client_arc = Arc::new(client);
+                                let mut join_set = tokio::task::JoinSet::new();
+
                                 for mr in &fetched_mrs {
-                                    if let Some(pipeline) = &mr.head_pipeline {
-                                        pipelines.push(pipeline.clone());
+                                    if mr.author.id == user_id {
+                                        if let Some(pipeline) = &mr.head_pipeline {
+                                            if pipeline_ids.insert(pipeline.id) {
+                                                pipelines.push(pipeline.clone());
+                                            }
+                                        } else if let Some(ref_name) = mr.source_branch.as_deref() {
+                                            // Clone for the async task
+                                            let client = client_arc.clone();
+                                            let project_id = mr.project_id;
+                                            let ref_name = ref_name.to_string();
+                                            let username = user.username.clone();
+                                            let mr_id = mr.id;
+
+                                            join_set.spawn(async move {
+                                                let res = client
+                                                    .fetch_latest_pipeline_for_project_ref(
+                                                        project_id,
+                                                        &ref_name,
+                                                        &username,
+                                                    )
+                                                    .await;
+                                                (mr_id, res)
+                                            });
+                                        }
                                     }
                                 }
-                                println!("Extracted {} pipelines from {} MRs", pipelines.len(), fetched_mrs.len());
+
+                                // Process concurrent results
+                                while let Some(res) = join_set.join_next().await {
+                                    match res {
+                                        Ok((mr_id, result)) => match result {
+                                            Ok(Some(pipeline)) => {
+                                                if pipeline_ids.insert(pipeline.id) {
+                                                    pipelines.push(pipeline);
+                                                }
+                                            }
+                                            Ok(None) => {}
+                                            Err(e) => {
+                                                error_msg.push_str(&format!(
+                                                    "Pipeline fallback (MR {}): {}; ",
+                                                    mr_id, e
+                                                ));
+                                            }
+                                        },
+                                        Err(e) => {
+                                            error_msg.push_str(&format!("Join error: {}; ", e));
+                                        }
+                                    }
+                                }
+
+                                println!(
+                                    "Extracted {} pipelines from {} MRs for user {}",
+                                    pipelines.len(),
+                                    fetched_mrs.len(),
+                                    user_id
+                                );
                                 
                                 // Identify "Notification" MRs (where user is not author)
                                 for mr in &fetched_mrs {

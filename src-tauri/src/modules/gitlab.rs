@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
-use reqwest::{Client, StatusCode};
+use reqwest::{Client, StatusCode, Url};
 use std::time::Duration;
 use std::collections::HashSet;
+
+use crate::modules::constants::PIPELINE_PAGE_SIZE;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
@@ -18,6 +20,7 @@ pub struct MergeRequest {
     pub id: u64,
     pub iid: u64,
     pub project_id: u64,
+    pub source_branch: Option<String>,
     pub title: String,
     pub description: Option<String>,
     pub state: String,
@@ -122,7 +125,7 @@ impl GitLabClient {
         self.get_json::<Author>(&url).await
     }
 
-    pub async fn fetch_merge_requests(&self) -> Result<(Vec<MergeRequest>, u64), GitLabError> {
+    pub async fn fetch_merge_requests(&self) -> Result<(Vec<MergeRequest>, Author), GitLabError> {
         let user = self.fetch_current_user().await?;
         let user_id = user.id;
 
@@ -154,7 +157,7 @@ impl GitLabClient {
             }
         }
 
-        Ok((all_mrs, user_id))
+        Ok((all_mrs, user))
     }
 
     pub async fn fetch_todos(&self) -> Result<Vec<Todo>, GitLabError> {
@@ -185,6 +188,27 @@ impl GitLabClient {
         // /pipelines?scope=all matches everything. 
         // For MVP, we'll use a broad fetch or specific to user if possible.
         self.get_json::<Vec<Pipeline>>(&url).await
+    }
+
+    pub async fn fetch_latest_pipeline_for_project_ref(
+        &self,
+        project_id: u64,
+        ref_name: &str,
+        username: &str,
+    ) -> Result<Option<Pipeline>, GitLabError> {
+        let base_url = format!("{}/api/v4/projects/{}/pipelines", self.host, project_id);
+        let mut url = Url::parse(&base_url)
+            .map_err(|e| GitLabError::Api(format!("Invalid pipelines URL: {}", e)))?;
+
+        url.query_pairs_mut()
+            .append_pair("ref", ref_name)
+            .append_pair("username", username)
+            .append_pair("order_by", "updated_at")
+            .append_pair("sort", "desc")
+            .append_pair("per_page", &PIPELINE_PAGE_SIZE.to_string());
+
+        let pipelines = self.get_json::<Vec<Pipeline>>(url.as_str()).await?;
+        Ok(pipelines.into_iter().next())
     }
 
     async fn get_json<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T, GitLabError> {

@@ -26,6 +26,7 @@ describe("InboxList", () => {
           id: 1,
           iid: 1,
           projectId: 1,
+          sourceBranch: "main",
           title: "Fix bug",
           description: "Fixing a bug",
           state: "opened",
@@ -55,6 +56,7 @@ describe("InboxList", () => {
           id: 1,
           iid: 1,
           projectId: 1,
+          sourceBranch: "main",
           title: "Double item check",
           description: "desc",
           state: "opened",
@@ -84,6 +86,7 @@ describe("InboxList", () => {
             id: 1,
             iid: 1,
             projectId: 1,
+            sourceBranch: "main",
             title: "Double item check",
             description: "desc",
             state: "opened",
@@ -116,6 +119,7 @@ describe("InboxList", () => {
           id: 1,
           iid: 1,
           projectId: 1,
+          sourceBranch: "main",
           title: "Other's MR",
           description: "desc",
           state: "opened",
@@ -133,6 +137,7 @@ describe("InboxList", () => {
           id: 2,
           iid: 2,
           projectId: 1,
+          sourceBranch: "main",
           title: "My MR",
           description: "desc",
           state: "opened",
@@ -186,42 +191,98 @@ describe("InboxList", () => {
         currentUsername={currentUsername}
       />,
     );
-    // Neither should show because none have headPipeline
-    expect(screen.queryByText("Other's MR")).not.toBeInTheDocument();
-    expect(screen.queryByText("My MR")).not.toBeInTheDocument();
+    // No pipelines in data yet
+    expect(screen.getByText("Inbox Zero")).toBeInTheDocument();
+  });
 
-    // Update My MR to have a pipeline
-    const mockDataWithPipeline: InboxData = {
-      ...mockData,
-      mergeRequests: [
-        mockData.mergeRequests[0],
+  it("renders pipelines view with branch and pipeline id", () => {
+    const mockData: InboxData = {
+      mergeRequests: [],
+      todos: [],
+      pipelines: [
         {
-          ...mockData.mergeRequests[1],
-          headPipeline: {
-            id: 10,
-            iid: 1,
-            projectId: 1,
-            status: "success",
-            source: "push",
-            ref: "main",
-            sha: "abc",
-            webUrl: "url",
-            createdAt: "now",
-            updatedAt: "now",
-          },
+          id: 101,
+          iid: 5,
+          projectId: 1,
+          status: "success",
+          source: "push",
+          ref: "refs/merge-requests/42/head",
+          sha: "abc",
+          webUrl: "http://gitlab.com/pipelines/101",
+          createdAt: "2023-01-01T00:00:00Z",
+          updatedAt: "2023-01-02T00:00:00Z",
         },
       ],
     };
 
-    rerender(
-      <InboxList
-        isLoading={false}
-        data={mockDataWithPipeline}
-        filter="pipelines"
-        currentUsername={currentUsername}
-      />,
+    render(<InboxList isLoading={false} data={mockData} filter="pipelines" />);
+    expect(screen.getByText("Merge Request #42")).toBeInTheDocument();
+    expect(screen.getByText("Pipeline #5")).toBeInTheDocument();
+  });
+
+  it("renders pipeline status icons for success and failure", () => {
+    const mockData: InboxData = {
+      mergeRequests: [],
+      todos: [],
+      pipelines: [
+        {
+          id: 201,
+          iid: null,
+          projectId: 1,
+          status: "success",
+          source: "push",
+          ref: "main",
+          sha: "abc",
+          webUrl: "http://gitlab.com/pipelines/201",
+          createdAt: "2023-01-01T00:00:00Z",
+          updatedAt: "2023-01-02T00:00:00Z",
+        },
+        {
+          id: 202,
+          iid: null,
+          projectId: 1,
+          status: "failed",
+          source: "push",
+          ref: "develop",
+          sha: "def",
+          webUrl: "http://gitlab.com/pipelines/202",
+          createdAt: "2023-01-01T00:00:00Z",
+          updatedAt: "2023-01-03T00:00:00Z",
+        },
+      ],
+    };
+
+    const { container } = render(
+      <InboxList isLoading={false} data={mockData} filter="pipelines" />,
     );
-    expect(screen.queryByText("Other's MR")).not.toBeInTheDocument();
-    expect(screen.getByText("My MR")).toBeInTheDocument();
+
+    const failedIcon = container.querySelector("svg.text-rose-500");
+
+    expect(failedIcon).toBeInTheDocument();
+  });
+
+  it("renders feature branch name when ref does not match MR pattern", () => {
+    const mockData: InboxData = {
+      mergeRequests: [],
+      todos: [],
+      pipelines: [
+        {
+          id: 301,
+          iid: null,
+          projectId: 1,
+          status: "running",
+          source: "push",
+          ref: "feature/new-login-flow",
+          sha: "ghi",
+          webUrl: "http://gitlab.com/pipelines/301",
+          createdAt: "2023-01-01T00:00:00Z",
+          updatedAt: "2023-01-02T00:00:00Z",
+        },
+      ],
+    };
+
+    render(<InboxList isLoading={false} data={mockData} filter="pipelines" />);
+    expect(screen.getByText("feature/new-login-flow")).toBeInTheDocument();
+    expect(screen.queryByText(/Merge Request #/)).not.toBeInTheDocument();
   });
 });

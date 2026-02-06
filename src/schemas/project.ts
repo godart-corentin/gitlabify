@@ -21,6 +21,7 @@ export const MergeRequestSchema = obj({
   id: num(),
   iid: num(),
   projectId: num(),
+  sourceBranch: nullable(str()),
   title: str(),
   description: nullable(str()),
   state: str(),

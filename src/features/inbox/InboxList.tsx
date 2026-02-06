@@ -5,6 +5,7 @@ import type { IconType } from "../../components/ui/StatusIcon";
 import type { InboxData, MergeRequest, Todo, Pipeline } from "../../schemas";
 
 import { InboxItem } from "./InboxItem";
+import { PipelineRow } from "./PipelineRow";
 
 interface InboxListProps {
   data?: InboxData | null;
@@ -19,6 +20,13 @@ export function InboxList({
   filter = "notifications",
   currentUsername,
 }: InboxListProps) {
+  const pipelineItems = useMemo(() => {
+    if (!data) return [];
+    return [...data.pipelines].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+  }, [data]);
+
   const items = useMemo(() => {
     if (!data) return [];
 
@@ -88,11 +96,6 @@ export function InboxList({
         return !!mr && isAuthor;
       }
 
-      if (filter === "pipelines") {
-        // My Pipelines: I am the author AND it has a pipeline
-        return !!mr && isAuthor && !!mr.headPipeline;
-      }
-
       return true;
     });
 
@@ -113,12 +116,25 @@ export function InboxList({
     return null;
   }
 
-  if (items.length === 0) {
+  const isEmpty =
+    filter === "pipelines" ? pipelineItems.length === 0 : items.length === 0;
+
+  if (isEmpty) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-8">
         <CheckCircle2 className="w-12 h-12 text-emerald-500 mb-4 opacity-50" />
         <p className="text-lg font-medium text-zinc-300">Inbox Zero</p>
         <p className="text-sm">You're all caught up!</p>
+      </div>
+    );
+  }
+
+  if (filter === "pipelines") {
+    return (
+      <div className="flex flex-col w-full pb-4">
+        {pipelineItems.map((pipeline) => (
+          <PipelineRow key={pipeline.id} pipeline={pipeline} />
+        ))}
       </div>
     );
   }
