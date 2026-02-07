@@ -7,5 +7,6 @@ export default defineConfig({
     coverage: {
       provider: "v8",
     },
+    passWithNoTests: true,
   },
 });

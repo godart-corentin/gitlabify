@@ -17,7 +17,7 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",
     "typecheck": "tsc --noEmit",
-    "validate": "bun lint && bun format && bun typecheck"
+    "validate": "bun run lint && bun run format && bun run typecheck && bun run test"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.20",
