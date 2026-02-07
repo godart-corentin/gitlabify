@@ -7,17 +7,23 @@ import type { IconType } from "../../components/ui/StatusIcon";
 import { StatusIcon } from "../../components/ui/StatusIcon";
 import type { Author } from "../../schemas";
 
-interface InboxItemProps {
+type StatusIconEntry = {
+  key: string;
+  type: IconType;
+  status: string;
+};
+
+type InboxItemProps = {
   type?: IconType;
   status?: string;
-  icons?: Array<{ type: IconType; status: string }>;
+  icons?: StatusIconEntry[];
   title: string;
   author: Author;
   updatedAt: string;
   webUrl: string;
   onClick?: () => void;
   className?: string;
-}
+};
 
 export function InboxItem({
   type,
@@ -42,7 +48,12 @@ export function InboxItem({
     await openUrl(webUrl);
   };
 
-  const statusIcons = icons || (type && status ? [{ type, status }] : []);
+  const statusIcons: StatusIconEntry[] =
+    icons || (type && status ? [{ key: `${type}-${status}`, type, status }] : []);
+
+  const statusIconNodes = statusIcons.map((icon) => (
+    <StatusIcon key={icon.key} type={icon.type} status={icon.status} className="w-5 h-5" />
+  ));
 
   return (
     <div
@@ -53,14 +64,7 @@ export function InboxItem({
       )}
     >
       <div className="flex items-center gap-2 shrink-0">
-        {statusIcons.map((icon, index) => (
-          <StatusIcon
-            key={`${icon.type}-${index}`}
-            type={icon.type}
-            status={icon.status}
-            className="w-5 h-5"
-          />
-        ))}
+        {statusIconNodes}
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col justify-center h-full">

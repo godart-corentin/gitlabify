@@ -1,38 +1,14 @@
-import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
-
 import { AuthScreen } from "./features/auth/AuthScreen";
 import { Dashboard } from "./features/inbox/Dashboard";
 import { useAuth } from "./hooks/useAuth";
-import { getConnectionStatus } from "./lib/commands";
+import { useLogoutOnAuthRequired } from "./hooks/useLogoutOnAuthRequired";
+import { useConnectionStatus } from "./hooks/useConnectionStatus";
 
-function App() {
+export const App = () => {
   const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuth();
-  const [isOffline, setIsOffline] = useState(false);
+  const { data: isOffline } = useConnectionStatus();
   const handleLogout = () => logout();
-
-  useEffect(() => {
-    // Sync initial status
-    getConnectionStatus().then(setIsOffline);
-
-    const unlisten = listen<boolean>("connection-status-changed", (event) => {
-      setIsOffline(event.payload);
-    });
-
-    return () => {
-      unlisten.then((f) => f());
-    };
-  }, []);
-
-  useEffect(() => {
-    const unlisten = listen("auth-required", () => {
-      logout();
-    });
-
-    return () => {
-      unlisten.then((f) => f());
-    };
-  }, [logout]);
+  useLogoutOnAuthRequired(logout);
 
   const isLoading = isLoadingToken || isLoadingUser;
 
@@ -85,6 +61,7 @@ function App() {
 
           <button
             onClick={handleLogout}
+            type="button"
             className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer border-l border-zinc-800 pl-3"
           >
             Sign out
@@ -97,6 +74,4 @@ function App() {
       </div>
     </main>
   );
-}
-
-export default App;
+};

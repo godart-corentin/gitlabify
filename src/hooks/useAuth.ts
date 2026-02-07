@@ -10,6 +10,8 @@ import {
   exchangeCodeForToken,
 } from "../lib/commands";
 
+const AUTH_USER_CACHE_TTL_MS = 1000 * 60 * 60;
+
 export function useAuth() {
   const queryClient = useQueryClient();
 
@@ -69,7 +71,7 @@ export function useAuth() {
     },
     enabled: !!token,
     retry: false,
-    staleTime: 1000 * 60 * 60, // 1 hour cache
+    staleTime: AUTH_USER_CACHE_TTL_MS,
   });
 
   // Mutation to verify and save token

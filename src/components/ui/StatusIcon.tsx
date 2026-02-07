@@ -14,11 +14,11 @@ import {
 
 export type IconType = "merge-request" | "todo" | "pipeline" | "comment" | "mention";
 
-interface StatusIconProps {
+type StatusIconProps = {
   type: IconType;
   status?: string;
   className?: string;
-}
+};
 
 export function StatusIcon({ type, status, className }: StatusIconProps) {
   const normalizedStatus = status?.toLowerCase() || "";

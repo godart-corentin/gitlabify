@@ -1,12 +1,12 @@
 import { clsx } from "clsx";
 import { User as UserIcon } from "lucide-react";
 
-interface AvatarProps {
+type AvatarProps = {
   src?: string | null;
   alt: string;
   size?: "sm" | "md" | "lg";
   className?: string;
-}
+};
 
 export function Avatar({ src, alt, size = "md", className }: AvatarProps) {
   const sizeClasses = {

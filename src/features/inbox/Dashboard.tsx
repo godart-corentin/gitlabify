@@ -1,5 +1,3 @@
-import { clsx } from "clsx";
-import { Inbox, GitMerge, Rocket, RefreshCw } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 
@@ -7,12 +5,12 @@ import { useAuth } from "../../hooks/useAuth";
 import { useInbox } from "../../hooks/useInbox";
 import { refreshInbox } from "../../lib/commands";
 
+import { DashboardHeader } from "./DashboardHeader";
 import { InboxList } from "./InboxList";
+import type { InboxFilter } from "./types";
 
 export const REFRESH_SPINNER_MIN_MS = 500;
 const INBOX_STALE_BANNER_TEXT = "Offline / Cached data";
-
-type DashboardFilter = "notifications" | "mrs" | "pipelines";
 
 type InboxStalePayload = {
   isStale: boolean;
@@ -38,7 +36,7 @@ const DEFAULT_STALE_STATE: InboxStaleState = {
 export function Dashboard() {
   const { data, isLoading, error } = useInbox();
   const { user } = useAuth();
-  const [filter, setFilter] = useState<DashboardFilter>("notifications");
+  const [filter, setFilter] = useState<InboxFilter>("notifications");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [staleState, setStaleState] = useState<InboxStaleState>(DEFAULT_STALE_STATE);
   const refreshTimeoutIdRef = useRef<number | null>(null);
@@ -61,11 +59,7 @@ export function Dashboard() {
     }
   };
 
-  const handleTabClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    const tabId = event.currentTarget.dataset.tabId as DashboardFilter | undefined;
-    if (!tabId) {
-      return;
-    }
+  const handleTabChange = (tabId: InboxFilter) => {
     setFilter(tabId);
   };
 
@@ -100,73 +94,15 @@ export function Dashboard() {
     return <div className="p-4 text-red-500">Error loading inbox: {error.message}</div>;
   }
 
-  const tabs: {
-    id: DashboardFilter;
-    label: string;
-    shortLabel: string;
-    icon: React.ReactNode;
-  }[] = [
-    {
-      id: "notifications",
-      label: "My Notifications",
-      shortLabel: "Inbox",
-      icon: <Inbox className="w-4 h-4" />,
-    },
-    {
-      id: "mrs",
-      label: "My MRs",
-      shortLabel: "My MRs",
-      icon: <GitMerge className="w-4 h-4" />,
-    },
-    {
-      id: "pipelines",
-      label: "My Pipelines",
-      shortLabel: "My Pipelines",
-      icon: <Rocket className="w-4 h-4" />,
-    },
-  ];
-
   return (
     <div className="flex flex-col h-full bg-zinc-950">
       {/* Header / Tabs */}
-      <div className="flex flex-col border-b border-zinc-800 bg-zinc-900 sticky top-0 z-10">
-        <div className="flex items-center justify-between p-2">
-          <div className="flex items-center gap-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                data-tab-id={tab.id}
-                onClick={handleTabClick}
-                title={tab.label}
-                className={clsx(
-                  "h-8 px-2.5 rounded-md transition-all duration-200 flex items-center justify-center gap-2 overflow-hidden",
-                  filter === tab.id
-                    ? "bg-zinc-800 text-orange-500 w-auto"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 w-9",
-                )}
-              >
-                <span className="shrink-0">{tab.icon}</span>
-                {filter === tab.id && (
-                  <span className="text-xs font-semibold whitespace-nowrap animate-in fade-in slide-in-from-left-1 duration-200">
-                    {tab.shortLabel}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all disabled:opacity-50"
-            title="Refresh Inbox"
-          >
-            <RefreshCw
-              className={clsx("w-3.5 h-3.5", isRefreshing && "animate-spin text-orange-500")}
-            />
-          </button>
-        </div>
-      </div>
+      <DashboardHeader
+        filter={filter}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        onTabChange={handleTabChange}
+      />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
