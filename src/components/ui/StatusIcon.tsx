@@ -12,7 +12,13 @@ import {
   CircleDashed,
 } from "lucide-react";
 
-export type IconType = "merge-request" | "todo" | "pipeline" | "comment" | "mention";
+export type IconType =
+  | "merge-request"
+  | "review"
+  | "todo"
+  | "pipeline"
+  | "comment"
+  | "mention";
 
 type StatusIconProps = {
   type: IconType;
@@ -33,7 +39,7 @@ export function StatusIcon({ type, status, className }: StatusIconProps) {
     return <GitPullRequest className={clsx("text-emerald-500", className)} />;
   }
 
-  if (type === "todo") {
+  if (type === "review" || type === "todo") {
     return <CheckSquare className={clsx("text-blue-400", className)} />;
   }
 

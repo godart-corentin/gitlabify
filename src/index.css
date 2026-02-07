@@ -18,7 +18,7 @@
   --inbox-selection-caret-height-px: 12px;
   --inbox-selection-cursor-offset-x-px: 6px;
   --inbox-selection-cursor-travel-px: 6px;
-  --inbox-selection-cursor-anim-ms: 700ms;
+  --inbox-selection-cursor-anim-ms: 1000ms;
   --inbox-selection-gutter-px: 12px;
   --inbox-selection-glow-blur-px: 12px;
   --inbox-selection-glow-opacity: 0.35;
