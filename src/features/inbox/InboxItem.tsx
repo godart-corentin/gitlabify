@@ -1,6 +1,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { clsx } from "clsx";
 import { formatDistanceToNow } from "date-fns";
+import type { CSSProperties } from "react";
 
 import { Avatar } from "../../components/ui/Avatar";
 import type { IconType } from "../../components/ui/StatusIcon";
@@ -23,7 +24,16 @@ type InboxItemProps = {
   webUrl: string;
   onClick?: () => void;
   className?: string;
+  isSelected?: boolean;
+  dataItemId?: string;
+  isHovered?: boolean;
 };
+
+const INBOX_ITEM_PADDING_X_PX = 16;
+
+const INBOX_ITEM_STYLE = {
+  "--inbox-row-padding-x": `${INBOX_ITEM_PADDING_X_PX}px`,
+} as CSSProperties;
 
 export function InboxItem({
   type,
@@ -35,7 +45,11 @@ export function InboxItem({
   webUrl,
   onClick,
   className,
+  isSelected = false,
+  dataItemId,
+  isHovered = false,
 }: InboxItemProps) {
+  const isActive = isSelected || isHovered;
   let timeAgo = "";
   try {
     timeAgo = formatDistanceToNow(new Date(updatedAt), { addSuffix: true });
@@ -58,8 +72,14 @@ export function InboxItem({
   return (
     <div
       onClick={handleClick}
+      aria-selected={isSelected}
+      data-item-id={dataItemId}
+      style={INBOX_ITEM_STYLE}
       className={clsx(
-        "group flex items-center h-12 px-4 gap-3 bg-zinc-900 hover:bg-zinc-800 cursor-pointer border-b border-zinc-800/50 transition-colors",
+        "group flex items-center h-12 gap-3 bg-zinc-900 cursor-pointer border-b border-zinc-800/50 transition-colors inbox-hoverable inbox-row",
+        isActive && "inbox-active-bg",
+        isSelected && "inbox-selected",
+        isHovered && "inbox-hovered",
         className,
       )}
     >

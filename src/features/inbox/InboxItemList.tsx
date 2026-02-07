@@ -1,7 +1,10 @@
+import type { MouseEvent } from "react";
+import { useEffect, useRef } from "react";
+
 import type { IconType } from "../../components/ui/StatusIcon";
 
 import { InboxItem } from "./InboxItem";
-import type { InboxFilter } from "./types";
+import { NO_SELECTION_ID, type InboxFilter, type SelectedItemId } from "./types";
 import {
   getNormalizedAction,
   isDraftTitle,
@@ -12,9 +15,41 @@ import {
 type InboxItemListProps = {
   items: GroupedItem[];
   filter: InboxFilter;
+  selectedItemId: SelectedItemId;
+  hoveredItemId: SelectedItemId;
+  hasHover: boolean;
+  onListMouseMove: (event: MouseEvent<HTMLDivElement>) => void;
+  onListMouseLeave: () => void;
 };
 
-export const InboxItemList = ({ items, filter }: InboxItemListProps) => {
+export const InboxItemList = ({
+  items,
+  filter,
+  selectedItemId,
+  hoveredItemId,
+  hasHover,
+  onListMouseMove,
+  onListMouseLeave,
+}: InboxItemListProps) => {
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (selectedItemId === NO_SELECTION_ID) {
+      return;
+    }
+    const container = listRef.current;
+    if (!container) {
+      return;
+    }
+    const selectedNode = container.querySelector<HTMLElement>(
+      `[data-item-id="${selectedItemId}"]`,
+    );
+    if (!selectedNode) {
+      return;
+    }
+    selectedNode.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selectedItemId]);
+
   const inboxItemNodes = items.map((item) => {
     const { mr, todo } = item;
     const icons: Array<{ key: string; type: IconType; status: string }> = [];
@@ -68,6 +103,8 @@ export const InboxItemList = ({ items, filter }: InboxItemListProps) => {
     const author = displayData?.author || todo!.author;
     const webUrl = displayData?.webUrl || todo!.targetUrl!;
     const updatedAt = displayData ? item.date.toISOString() : todo!.createdAt;
+    const isSelected = !hasHover && selectedItemId === item.id;
+    const isHovered = hoveredItemId === item.id;
 
     return (
       <InboxItem
@@ -77,9 +114,21 @@ export const InboxItemList = ({ items, filter }: InboxItemListProps) => {
         author={author}
         updatedAt={updatedAt}
         webUrl={webUrl}
+        isSelected={isSelected}
+        dataItemId={item.id}
+        isHovered={isHovered}
       />
     );
   });
 
-  return <div className="flex flex-col w-full pb-4">{inboxItemNodes}</div>;
+  return (
+    <div
+      ref={listRef}
+      className="flex flex-col w-full pb-4"
+      onMouseMove={onListMouseMove}
+      onMouseLeave={onListMouseLeave}
+    >
+      {inboxItemNodes}
+    </div>
+  );
 };

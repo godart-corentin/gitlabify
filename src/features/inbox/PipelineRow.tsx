@@ -18,13 +18,23 @@ const PIPELINE_ROW_STYLE = {
   "--pipeline-row-padding-x": `${PIPELINE_ROW_PADDING_X_PX}px`,
   "--pipeline-row-gap": `${PIPELINE_ROW_GAP_PX}px`,
   "--pipeline-icon-size": `${PIPELINE_ICON_SIZE_PX}px`,
+  "--inbox-row-padding-x": `${PIPELINE_ROW_PADDING_X_PX}px`,
 } as CSSProperties;
 
 type PipelineRowProps = {
   pipeline: Pipeline;
+  isSelected?: boolean;
+  dataItemId?: string;
+  isHovered?: boolean;
 };
 
-export function PipelineRow({ pipeline }: PipelineRowProps) {
+export function PipelineRow({
+  pipeline,
+  isSelected = false,
+  dataItemId,
+  isHovered = false,
+}: PipelineRowProps) {
+  const isActive = isSelected || isHovered;
   const pipelineId = pipeline.iid ?? pipeline.id;
   const pipelineIdLabel = `${PIPELINE_ID_PREFIX}${pipelineId}`;
   const mergeRequestMatch = MERGE_REQUEST_REF_PATTERN.exec(pipeline.ref);
@@ -39,10 +49,15 @@ export function PipelineRow({ pipeline }: PipelineRowProps) {
   return (
     <div
       onClick={handleClick}
+      aria-selected={isSelected}
+      data-item-id={dataItemId}
       style={PIPELINE_ROW_STYLE}
       className={clsx(
-        "group flex items-center h-[var(--pipeline-row-height)] px-[var(--pipeline-row-padding-x)] gap-[var(--pipeline-row-gap)]",
-        "bg-zinc-900 hover:bg-zinc-800 cursor-pointer border-b border-zinc-800/50 transition-colors",
+        "group flex items-center h-[var(--pipeline-row-height)] gap-[var(--pipeline-row-gap)] inbox-hoverable inbox-row",
+        "bg-zinc-900 cursor-pointer border-b border-zinc-800/50 transition-colors",
+        isActive && "inbox-active-bg",
+        isSelected && "inbox-selected",
+        isHovered && "inbox-hovered",
       )}
     >
       <div className="flex items-center shrink-0">

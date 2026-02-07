@@ -14,6 +14,20 @@
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  --inbox-selection-caret-width-px: 10px;
+  --inbox-selection-caret-height-px: 12px;
+  --inbox-selection-cursor-offset-x-px: 6px;
+  --inbox-selection-cursor-travel-px: 6px;
+  --inbox-selection-cursor-anim-ms: 700ms;
+  --inbox-selection-gutter-px: 12px;
+  --inbox-selection-glow-blur-px: 12px;
+  --inbox-selection-glow-opacity: 0.35;
+  --inbox-selection-sheen-width-px: 120px;
+  --inbox-selection-sheen-opacity: 0.08;
+  --inbox-active-bg: #151518;
+  --inbox-selection-sheen-anim-ms: 1400ms;
+  --color-primary: #e24329;
+  --color-primary-rgb: 226 67 41;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -39,4 +53,75 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
+}
+
+@keyframes inbox-selection-cursor-slide {
+  0% {
+    transform: translate(var(--inbox-selection-cursor-offset-x-px), -50%);
+  }
+  100% {
+    transform: translate(
+      calc(
+        var(--inbox-selection-cursor-offset-x-px) +
+          var(--inbox-selection-cursor-travel-px)
+      ),
+      -50%
+    );
+  }
+}
+
+@keyframes inbox-selection-sheen {
+  0% {
+    background-position: calc(-1 * var(--inbox-selection-sheen-width-px)) 0;
+  }
+  100% {
+    background-position: calc(100% + var(--inbox-selection-sheen-width-px)) 0;
+  }
+}
+
+.inbox-hoverable {
+  position: relative;
+}
+
+.inbox-row {
+  padding-left: calc(var(--inbox-row-padding-x) + var(--inbox-selection-gutter-px));
+  padding-right: var(--inbox-row-padding-x);
+}
+
+.inbox-active-bg {
+  background-color: var(--inbox-active-bg);
+}
+
+.inbox-selected::before,
+.inbox-hovered::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: var(--inbox-selection-caret-width-px);
+  height: var(--inbox-selection-caret-height-px);
+  display: block;
+  background-color: var(--color-primary);
+  clip-path: polygon(0 0, 0 100%, 100% 50%);
+  animation: inbox-selection-cursor-slide var(--inbox-selection-cursor-anim-ms) linear
+    infinite alternate;
+}
+
+.inbox-selected::after,
+.inbox-hovered::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--color-primary-rgb) / var(--inbox-selection-sheen-opacity)),
+    transparent
+  );
+  background-repeat: no-repeat;
+  background-size: var(--inbox-selection-sheen-width-px) 100%;
+  background-position: calc(-1 * var(--inbox-selection-sheen-width-px)) 0;
+  animation: inbox-selection-sheen var(--inbox-selection-sheen-anim-ms) ease-in-out
+    infinite;
+  pointer-events: none;
 }
