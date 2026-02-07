@@ -1,104 +1,110 @@
-use serde::{Deserialize, Serialize};
 use reqwest::{Client, StatusCode, Url};
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::collections::HashSet;
+use thiserror::Error;
 
-use crate::modules::constants::PIPELINE_PAGE_SIZE;
+use crate::modules::constants::{
+    GITLAB_API_MAX_RETRIES,
+    GITLAB_API_RETRY_BASE_DELAY_MS,
+    HTTP_TIMEOUT_SECS,
+    PIPELINE_PAGE_SIZE,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
-pub struct Author {
-    pub id: u64,
-    pub name: String,
-    pub username: String,
-    pub avatar_url: Option<String>,
+pub(crate) struct Author {
+    pub(crate) id: u64,
+    pub(crate) name: String,
+    pub(crate) username: String,
+    pub(crate) avatar_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
-pub struct MergeRequest {
-    pub id: u64,
-    pub iid: u64,
-    pub project_id: u64,
-    pub source_branch: Option<String>,
-    pub title: String,
-    pub description: Option<String>,
-    pub state: String,
-    pub created_at: String,
-    pub updated_at: String,
-    pub web_url: String,
-    pub author: Author,
-    pub has_conflicts: bool,
-    pub blocking_discussions_resolved: bool,
+pub(crate) struct MergeRequest {
+    pub(crate) id: u64,
+    pub(crate) iid: u64,
+    pub(crate) project_id: u64,
+    pub(crate) source_branch: Option<String>,
+    pub(crate) title: String,
+    pub(crate) description: Option<String>,
+    pub(crate) state: String,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
+    pub(crate) web_url: String,
+    pub(crate) author: Author,
+    pub(crate) has_conflicts: bool,
+    pub(crate) blocking_discussions_resolved: bool,
     #[serde(alias = "pipeline")]
-    pub head_pipeline: Option<Pipeline>,
+    pub(crate) head_pipeline: Option<Pipeline>,
     #[serde(default)]
-    pub draft: bool,
+    pub(crate) draft: bool,
     #[serde(default)]
-    pub work_in_progress: bool,
+    pub(crate) work_in_progress: bool,
     #[serde(default)]
-    pub is_reviewer: bool,
+    pub(crate) is_reviewer: bool,
     #[serde(default)]
-    pub approved_by_me: bool,
+    pub(crate) approved_by_me: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
-pub struct Todo {
-    pub id: u64,
-    pub project_id: Option<u64>,
-    pub author: Author,
-    pub action_name: String,
-    pub target_type: String,
-    pub target_url: Option<String>,
-    pub target: Option<MergeRequest>,
-    pub body: Option<String>,
-    pub state: String,
-    pub created_at: String,
+pub(crate) struct Todo {
+    pub(crate) id: u64,
+    pub(crate) project_id: Option<u64>,
+    pub(crate) author: Author,
+    pub(crate) action_name: String,
+    pub(crate) target_type: String,
+    pub(crate) target_url: Option<String>,
+    pub(crate) target: Option<MergeRequest>,
+    pub(crate) body: Option<String>,
+    pub(crate) state: String,
+    pub(crate) created_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
-pub struct Pipeline {
-    pub id: u64,
-    pub iid: Option<u64>,
-    pub project_id: u64,
-    pub status: String,
-    pub source: String,
-    pub r#ref: String,
-    pub sha: String,
-    pub web_url: String,
-    pub created_at: String,
-    pub updated_at: String,
+pub(crate) struct Pipeline {
+    pub(crate) id: u64,
+    pub(crate) iid: Option<u64>,
+    pub(crate) project_id: u64,
+    pub(crate) status: String,
+    pub(crate) source: String,
+    pub(crate) r#ref: String,
+    pub(crate) sha: String,
+    pub(crate) web_url: String,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct InboxData {
-    pub merge_requests: Vec<MergeRequest>,
-    pub todos: Vec<Todo>,
-    pub pipelines: Vec<Pipeline>,
+pub(crate) struct InboxData {
+    pub(crate) merge_requests: Vec<MergeRequest>,
+    pub(crate) todos: Vec<Todo>,
+    pub(crate) pipelines: Vec<Pipeline>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
-pub struct ApprovalUser {
-    pub id: u64,
+pub(crate) struct ApprovalUser {
+    pub(crate) id: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
-pub struct ApprovalEntry {
-    pub user: ApprovalUser,
+pub(crate) struct ApprovalEntry {
+    pub(crate) user: ApprovalUser,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
-pub struct MergeRequestApprovals {
-    pub approved_by: Vec<ApprovalEntry>,
+pub(crate) struct MergeRequestApprovals {
+    pub(crate) approved_by: Vec<ApprovalEntry>,
 }
 
-pub struct GitLabClient {
+pub(crate) struct GitLabClient {
     client: Client,
     host: String,
     token: String,
@@ -107,50 +113,37 @@ pub struct GitLabClient {
 const MERGE_REQUEST_PATH_SEGMENT: &str = "/merge_requests/";
 const MERGE_REQUEST_PATH_SEPARATOR: &str = "/-/merge_requests/";
 
-#[derive(Debug)]
-pub enum GitLabError {
-    Network(reqwest::Error),
+#[derive(Debug, Error)]
+pub(crate) enum GitLabError {
+    #[error("Network error: {0}")]
+    Network(#[from] reqwest::Error),
+    #[error("API error: {0}")]
     Api(String),
+    #[error("Unauthorized")]
     Unauthorized,
+    #[error("Rate limited")]
     RateLimited,
 }
 
-impl std::fmt::Display for GitLabError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GitLabError::Network(e) => write!(f, "Network error: {}", e),
-            GitLabError::Api(s) => write!(f, "API error: {}", s),
-            GitLabError::Unauthorized => write!(f, "Unauthorized"),
-            GitLabError::RateLimited => write!(f, "Rate limited"),
-        }
-    }
-}
-
-impl std::error::Error for GitLabError {}
-
-impl From<reqwest::Error> for GitLabError {
-    fn from(err: reqwest::Error) -> Self {
-        GitLabError::Network(err)
-    }
-}
-
 impl GitLabClient {
-    pub fn new(host: String, token: String) -> Result<Self, GitLabError> {
+    pub(crate) fn new(host: String, token: String) -> Result<Self, GitLabError> {
         let client = Client::builder()
             .user_agent("gitlabify")
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
             .build()
             .map_err(GitLabError::Network)?;
         
         Ok(Self { client, host, token })
     }
 
-    pub async fn fetch_current_user(&self) -> Result<Author, GitLabError> {
+    pub(crate) async fn fetch_current_user(&self) -> Result<Author, GitLabError> {
         let url = format!("{}/api/v4/user", self.host);
         self.get_json::<Author>(&url).await
     }
 
-    pub async fn fetch_merge_requests(&self) -> Result<(Vec<MergeRequest>, Author), GitLabError> {
+    pub(crate) async fn fetch_merge_requests(
+        &self,
+    ) -> Result<(Vec<MergeRequest>, Author), GitLabError> {
         let user = self.fetch_current_user().await?;
         let user_id = user.id;
 
@@ -216,12 +209,12 @@ impl GitLabClient {
         Ok((all_mrs, user))
     }
 
-    pub async fn fetch_todos(&self) -> Result<Vec<Todo>, GitLabError> {
+    pub(crate) async fn fetch_todos(&self) -> Result<Vec<Todo>, GitLabError> {
         let url = format!("{}/api/v4/todos?state=pending&type=MergeRequest", self.host);
         let mut todos = self.get_json::<Vec<Todo>>(&url).await?;
 
         for todo in &mut todos {
-            if todo.target.is_some() {
+            if let Some(_) = todo.target.as_ref() {
                 continue;
             }
 
@@ -284,7 +277,7 @@ impl GitLabClient {
     }
 
     #[allow(dead_code)]
-    pub async fn fetch_pipelines(&self) -> Result<Vec<Pipeline>, GitLabError> {
+    pub(crate) async fn fetch_pipelines(&self) -> Result<Vec<Pipeline>, GitLabError> {
         // Fetch pipelines for the current user
         let url = format!("{}/api/v4/pipelines?scope=branches", self.host);
         // Note: GitLab pipelines API is a bit tricky for "my pipelines" across all projects.
@@ -294,7 +287,7 @@ impl GitLabClient {
         self.get_json::<Vec<Pipeline>>(&url).await
     }
 
-    pub async fn fetch_latest_pipeline_for_project_ref(
+    pub(crate) async fn fetch_latest_pipeline_for_project_ref(
         &self,
         project_id: u64,
         ref_name: &str,
@@ -315,7 +308,7 @@ impl GitLabClient {
         Ok(pipelines.into_iter().next())
     }
 
-    pub async fn fetch_merge_request(
+    pub(crate) async fn fetch_merge_request(
         &self,
         project_id: u64,
         merge_request_iid: u64,
@@ -327,7 +320,7 @@ impl GitLabClient {
         self.get_json::<MergeRequest>(&url).await
     }
 
-    pub async fn fetch_merge_request_by_path(
+    pub(crate) async fn fetch_merge_request_by_path(
         &self,
         project_path: &str,
         merge_request_iid: u64,
@@ -340,7 +333,7 @@ impl GitLabClient {
         self.get_json::<MergeRequest>(&url).await
     }
 
-    pub async fn fetch_merge_request_approvals(
+    pub(crate) async fn fetch_merge_request_approvals(
         &self,
         project_id: u64,
         merge_request_iid: u64,
@@ -353,7 +346,6 @@ impl GitLabClient {
     }
 
     async fn get_json<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T, GitLabError> {
-        let max_retries = 3;
         let mut attempt = 0;
 
         loop {
@@ -366,8 +358,9 @@ impl GitLabClient {
                     if status.is_success() {
                         return response.json::<T>().await.map_err(GitLabError::Network);
                     } else if status.is_server_error() {
-                        if attempt < max_retries {
-                            tokio::time::sleep(Duration::from_millis(500 * attempt)).await;
+                        if attempt < GITLAB_API_MAX_RETRIES {
+                            let backoff_ms = GITLAB_API_RETRY_BASE_DELAY_MS.saturating_mul(attempt as u64);
+                            tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
                             continue;
                         }
                     }
@@ -384,8 +377,9 @@ impl GitLabClient {
                     }
                 },
                 Err(e) => {
-                    if attempt < max_retries {
-                        tokio::time::sleep(Duration::from_millis(500 * attempt)).await;
+                    if attempt < GITLAB_API_MAX_RETRIES {
+                        let backoff_ms = GITLAB_API_RETRY_BASE_DELAY_MS.saturating_mul(attempt as u64);
+                        tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
                         continue;
                     }
                     return Err(GitLabError::Network(e));
@@ -409,7 +403,7 @@ fn is_comment_or_mention_action(action_name: &str) -> bool {
 fn extract_merge_request_iid(target_url: &str) -> Option<u64> {
     let start_index = target_url.find(MERGE_REQUEST_PATH_SEGMENT)?;
     let start = start_index + MERGE_REQUEST_PATH_SEGMENT.len();
-    let rest = &target_url[start..];
+    let rest = target_url.get(start..)?;
     let iid_str = rest.split(['/', '?', '#']).next()?;
     iid_str.parse::<u64>().ok()
 }
@@ -418,7 +412,7 @@ fn extract_project_path(target_url: &str) -> Option<String> {
     let url = Url::parse(target_url).ok()?;
     let path = url.path();
     let split_index = path.find(MERGE_REQUEST_PATH_SEPARATOR)?;
-    let project_path = &path[1..split_index];
+    let project_path = path.get(1..split_index)?;
     if project_path.is_empty() {
         return None;
     }

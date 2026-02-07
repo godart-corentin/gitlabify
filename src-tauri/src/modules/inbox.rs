@@ -17,7 +17,11 @@ use crate::modules::constants::{
 };
 use serde::de::DeserializeOwned;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    Arc,
+    Mutex,
+};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_keyring::KeyringExt;
@@ -37,36 +41,36 @@ fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, label: &str) -> std::sync::MutexG
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum ConnectionStatus {
+pub(crate) enum ConnectionStatus {
     Connected,
     Offline,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InboxStalePayload {
-    pub is_stale: bool,
-    pub is_offline: bool,
-    pub last_updated_at_ms: Option<u64>,
-    pub last_error: Option<String>,
+pub(crate) struct InboxStalePayload {
+    pub(crate) is_stale: bool,
+    pub(crate) is_offline: bool,
+    pub(crate) last_updated_at_ms: Option<u64>,
+    pub(crate) last_error: Option<String>,
 }
 
-pub struct InboxState {
-    pub status: Mutex<ConnectionStatus>,
-    pub unread_count: Mutex<usize>,
-    pub consecutive_failures: Mutex<usize>,
-    pub data: Mutex<Option<InboxData>>,
-    pub last_error: Mutex<Option<String>>,
-    pub last_updated_at_ms: Mutex<Option<u64>>,
-    pub poll_now: Arc<Notify>,
+pub(crate) struct InboxState {
+    pub(crate) is_offline: AtomicBool,
+    pub(crate) unread_count: AtomicUsize,
+    pub(crate) consecutive_failures: AtomicUsize,
+    pub(crate) data: Mutex<Option<InboxData>>,
+    pub(crate) last_error: Mutex<Option<String>>,
+    pub(crate) last_updated_at_ms: Mutex<Option<u64>>,
+    pub(crate) poll_now: Arc<Notify>,
 }
 
 impl InboxState {
     pub fn new() -> Self {
         Self {
-            status: Mutex::new(ConnectionStatus::Connected),
-            unread_count: Mutex::new(0),
-            consecutive_failures: Mutex::new(0),
+            is_offline: AtomicBool::new(false),
+            unread_count: AtomicUsize::new(0),
+            consecutive_failures: AtomicUsize::new(0),
             data: Mutex::new(None),
             last_error: Mutex::new(None),
             last_updated_at_ms: Mutex::new(None),
@@ -77,41 +81,34 @@ impl InboxState {
     /// Updates the state based on polling success/failure.
     /// Returns (status_changed, is_offline, count)
     pub fn update(&self, success: bool) -> (bool, bool, usize) {
-        let mut status = lock_or_recover(&self.status, "InboxState status");
-        let mut failures = lock_or_recover(&self.consecutive_failures, "InboxState failures");
-        let count = *lock_or_recover(&self.unread_count, "InboxState count");
-        let mut changed = false;
+        let count = self.unread_count.load(Ordering::Relaxed);
 
         if success {
-            *failures = 0;
-            if *status != ConnectionStatus::Connected {
-                *status = ConnectionStatus::Connected;
-                changed = true;
-            }
+            self.consecutive_failures.store(0, Ordering::Relaxed);
+            let was_offline = self.is_offline.swap(false, Ordering::Relaxed);
             // Clear error on success
             *lock_or_recover(&self.last_error, "InboxState last_error") = None;
-        } else {
-            *failures += 1;
-            // Check for threshold
-            if *failures >= CONSECUTIVE_FAILURE_THRESHOLD && *status != ConnectionStatus::Offline {
-                *status = ConnectionStatus::Offline;
-                changed = true;
-            }
+            return (was_offline, false, count);
         }
 
-        (changed, *status == ConnectionStatus::Offline, count)
+        let failures = self.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
+        let mut changed = false;
+        if failures >= CONSECUTIVE_FAILURE_THRESHOLD {
+            let was_offline = self.is_offline.swap(true, Ordering::Relaxed);
+            changed = !was_offline;
+        }
+
+        (changed, self.is_offline.load(Ordering::Relaxed), count)
     }
 
     pub fn set_count(&self, new_count: usize) -> (bool, bool, usize) {
-        let mut count = lock_or_recover(&self.unread_count, "InboxState count");
-        let status = lock_or_recover(&self.status, "InboxState status");
-        let is_offline = *status == ConnectionStatus::Offline;
+        let previous = self.unread_count.swap(new_count, Ordering::Relaxed);
+        let is_offline = self.is_offline.load(Ordering::Relaxed);
 
-        if *count != new_count {
-            *count = new_count;
+        if previous != new_count {
             return (true, is_offline, new_count);
         }
-        (false, is_offline, *count)
+        (false, is_offline, previous)
     }
 
     pub fn set_data(&self, new_data: InboxData) {
@@ -130,13 +127,12 @@ impl InboxState {
     }
 
     pub fn set_status(&self, status: ConnectionStatus) {
-        let mut current_status = lock_or_recover(&self.status, "InboxState status");
-        *current_status = status;
+        let is_offline = matches!(status, ConnectionStatus::Offline);
+        self.is_offline.store(is_offline, Ordering::Relaxed);
     }
 
     pub fn is_offline(&self) -> bool {
-        let status = lock_or_recover(&self.status, "InboxState status");
-        *status == ConnectionStatus::Offline
+        self.is_offline.load(Ordering::Relaxed)
     }
 
     pub fn set_last_updated_at_ms(&self, last_updated_at_ms: Option<u64>) {
@@ -215,10 +211,11 @@ fn load_cached_inbox<R: Runtime>(app: &AppHandle<R>) {
 
         let _ = app.emit("inbox-updated", data);
 
+        let has_last_error = matches!(last_error, Some(_));
         let is_stale = last_updated_at_ms
             .map(|ts| now_ms().saturating_sub(ts) >= INBOX_CACHE_STALE_THRESHOLD_MS)
             .unwrap_or(true)
-            || last_error.is_some();
+            || has_last_error;
 
         emit_inbox_stale(
             app,
@@ -311,7 +308,7 @@ mod tests {
 
         {
             let data = state.data.lock().unwrap();
-            assert!(data.is_some());
+            assert!(matches!(*data, Some(_)));
         }
     }
 
@@ -329,7 +326,7 @@ mod tests {
 
 }
 
-pub fn update_connection_status<R: Runtime>(app: &AppHandle<R>, success: bool) {
+pub(crate) fn update_connection_status<R: Runtime>(app: &AppHandle<R>, success: bool) {
     let state = app.state::<InboxState>();
     let (changed, is_offline, count) = state.update(success);
 
@@ -339,7 +336,7 @@ pub fn update_connection_status<R: Runtime>(app: &AppHandle<R>, success: bool) {
     }
 }
 
-pub fn update_count<R: Runtime>(app: &AppHandle<R>, count: usize) {
+pub(crate) fn update_count<R: Runtime>(app: &AppHandle<R>, count: usize) {
     let state = app.state::<InboxState>();
     let (changed, is_offline, _) = state.set_count(count);
 
@@ -348,29 +345,28 @@ pub fn update_count<R: Runtime>(app: &AppHandle<R>, count: usize) {
     }
 }
 
-pub fn trigger_poll<R: Runtime>(app: &AppHandle<R>) {
+pub(crate) fn trigger_poll<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<InboxState>();
     state.poll_now.notify_one();
 }
 
 #[tauri::command]
-pub fn get_inbox(state: tauri::State<InboxState>) -> Option<InboxData> {
+pub(crate) fn get_inbox(state: tauri::State<InboxState>) -> Option<InboxData> {
     let data = lock_or_recover(&state.data, "InboxState data");
     data.clone()
 }
 
 #[tauri::command]
-pub fn get_connection_status(state: tauri::State<InboxState>) -> bool {
-    let status = lock_or_recover(&state.status, "InboxState status");
-    *status == ConnectionStatus::Offline
+pub(crate) fn get_connection_status(state: tauri::State<InboxState>) -> bool {
+    state.is_offline()
 }
 
 #[tauri::command]
-pub fn refresh_inbox(app: AppHandle) {
+pub(crate) fn refresh_inbox(app: AppHandle) {
     trigger_poll(&app);
 }
 
-pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
+pub(crate) fn start_polling<R: Runtime>(app: &AppHandle<R>) {
     let app_handle = app.clone();
     let poll_now = app.state::<InboxState>().poll_now.clone();
 

@@ -1,28 +1,48 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::{distributions::Alphanumeric, Rng};
 use sha2::{Digest, Sha256};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
+use anyhow::{Context, Result as AnyResult};
 
 use crate::modules::auth::{save_token, verify_token, User};
-use crate::modules::constants::GITLAB_HOST;
+use crate::modules::constants::{GITLAB_HOST, OAUTH_VERIFIER_LENGTH};
 
-pub struct OAuthState {
-    pub code_verifier: Mutex<Option<String>>,
+pub(crate) struct OAuthState {
+    pub(crate) code_verifier: Mutex<Option<String>>,
+}
+
+fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, label: &str) -> MutexGuard<'a, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Poisoned mutex: {}. Recovering inner value.", label);
+            poisoned.into_inner()
+        }
+    }
 }
 
 #[tauri::command]
-pub async fn start_oauth_flow(
+pub(crate) async fn start_oauth_flow(
     app: AppHandle,
     state: State<'_, OAuthState>,
 ) -> Result<String, String> {
+    start_oauth_flow_impl(app, state)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn start_oauth_flow_impl(
+    app: AppHandle,
+    state: State<'_, OAuthState>,
+) -> AnyResult<String> {
     let verifier = generate_verifier();
     let challenge = generate_challenge(&verifier);
 
     // Store verifier in state
     {
-        let mut verifier_state = state.code_verifier.lock().expect("OAuthState mutex poisoned");
+        let mut verifier_state = lock_or_recover(&state.code_verifier, "OAuthState code_verifier");
         *verifier_state = Some(verifier);
     }
 
@@ -42,17 +62,28 @@ pub async fn start_oauth_flow(
     // Open browser
     app.opener()
         .open_url(auth_url, None::<&str>)
-        .map_err(|e| e.to_string())?;
+        .context("Failed to open OAuth URL in browser")?;
 
     Ok("OAuth flow started".to_string())
 }
 
 #[tauri::command]
-pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<User, String> {
+pub(crate) async fn exchange_code_for_token(
+    app: AppHandle,
+    code: String,
+) -> Result<User, String> {
+    exchange_code_for_token_impl(app, code)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn exchange_code_for_token_impl(app: AppHandle, code: String) -> AnyResult<User> {
     let verifier = {
         let state = app.state::<OAuthState>();
-        let mut verifier_state = state.code_verifier.lock().expect("OAuthState mutex poisoned");
-        verifier_state.take().ok_or("No code verifier found")?
+        let mut verifier_state = lock_or_recover(&state.code_verifier, "OAuthState code_verifier");
+        verifier_state
+            .take()
+            .context("No code verifier found")?
     };
 
     let client_id = env!("GITLAB_CLIENT_ID");
@@ -75,26 +106,29 @@ pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<Use
         .form(&params)
         .send()
         .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+        .context("Token exchange request failed")?;
 
     if !response.status().is_success() {
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!("Token exchange failed: {}", error_text));
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(anyhow::anyhow!("Token exchange failed: {}", error_text));
     }
 
-    let token_response: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let token_response: serde_json::Value = response.json().await.context("Failed to parse token response")?;
     let access_token = token_response["access_token"]
         .as_str()
-        .ok_or("No access token in response")?
+        .context("No access token in response")?
         .to_string();
 
     // Verify and save the token
     let user = verify_token(app.clone(), access_token.clone())
         .await
-        .map_err(|e| e.to_string())?;
+        .context("Token verification failed")?;
     save_token(app, access_token)
         .await
-        .map_err(|e| e.to_string())?;
+        .context("Saving token failed")?;
 
     Ok(user)
 }
@@ -102,7 +136,7 @@ pub async fn exchange_code_for_token(app: AppHandle, code: String) -> Result<Use
 fn generate_verifier() -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
-        .take(128)
+        .take(OAUTH_VERIFIER_LENGTH)
         .map(char::from)
         .collect()
 }

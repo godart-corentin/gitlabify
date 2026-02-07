@@ -9,10 +9,15 @@ use tauri::{
 };
 
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("../../icons/tray-icon.png");
+const TRAY_BADGE_RADIUS_DIVISOR_PX: u32 = 4;
+const TRAY_BADGE_ALPHA_U8: u8 = 255;
+const TRAY_BADGE_COLOR_ERROR: Rgba<u8> = Rgba([227, 60, 40, TRAY_BADGE_ALPHA_U8]);
+const TRAY_BADGE_COLOR_INFO: Rgba<u8> = Rgba([252, 109, 38, TRAY_BADGE_ALPHA_U8]);
+const TRAY_FALLBACK_IMAGE_SIZE_PX: u32 = 1;
 
 static BASE_IMAGE: OnceLock<image::DynamicImage> = OnceLock::new();
 
-pub enum TrayStatus {
+pub(crate) enum TrayStatus {
     Idle,
     #[allow(dead_code)]
     Info,
@@ -23,7 +28,13 @@ pub enum TrayStatus {
 #[allow(dead_code)]
 fn generate_tray_icon(status: TrayStatus) -> Option<Image<'static>> {
     let base_img = BASE_IMAGE.get_or_init(|| {
-        image::load_from_memory(TRAY_ICON_BYTES).expect("Failed to load tray icon bytes")
+        match image::load_from_memory(TRAY_ICON_BYTES) {
+            Ok(image) => image,
+            Err(err) => {
+                eprintln!("Failed to load tray icon bytes: {}", err);
+                image::DynamicImage::new_rgba8(TRAY_FALLBACK_IMAGE_SIZE_PX, TRAY_FALLBACK_IMAGE_SIZE_PX)
+            }
+        }
     });
 
     let mut img = base_img.clone();
@@ -32,14 +43,14 @@ fn generate_tray_icon(status: TrayStatus) -> Option<Image<'static>> {
         TrayStatus::Idle => {} // Return clean logo
         TrayStatus::Info | TrayStatus::Error => {
             let (width, height) = img.dimensions();
-            let radius = width / 4;
+            let radius = width / TRAY_BADGE_RADIUS_DIVISOR_PX;
             let cx = width - radius; // Max Right
             let cy = height - radius; // Max Bottom
 
             let color = if let TrayStatus::Error = status {
-                Rgba([227, 60, 40, 255]) // GitLab Red #E33C28
+                TRAY_BADGE_COLOR_ERROR // GitLab Red #E33C28
             } else {
-                Rgba([252, 109, 38, 255]) // GitLab Orange #FC6D26
+                TRAY_BADGE_COLOR_INFO // GitLab Orange #FC6D26
             };
 
             // Draw Circle
@@ -64,7 +75,7 @@ fn generate_tray_icon(status: TrayStatus) -> Option<Image<'static>> {
 }
 
 #[allow(dead_code)]
-pub fn update_badge<R: Runtime>(app: &AppHandle<R>, count: usize, has_failure: bool) {
+pub(crate) fn update_badge<R: Runtime>(app: &AppHandle<R>, count: usize, has_failure: bool) {
     if let Some(tray) = app.tray_by_id("main") {
         if let Err(e) = tray.set_tooltip(Some(format_tooltip(has_failure))) {
             eprintln!("Failed to set tray tooltip: {}", e);
@@ -91,7 +102,9 @@ pub fn update_badge<R: Runtime>(app: &AppHandle<R>, count: usize, has_failure: b
     }
 }
 
-pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::TrayIcon<R>> {
+pub(crate) fn create_tray<R: Runtime>(
+    app: &AppHandle<R>,
+) -> tauri::Result<tauri::tray::TrayIcon<R>> {
     let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let show_hide_i = MenuItem::with_id(app, "toggle", "Show/Hide", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_hide_i, &quit_i])?;
@@ -131,7 +144,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray:
 }
 
 #[allow(dead_code)]
-pub fn format_tooltip(is_offline: bool) -> String {
+pub(crate) fn format_tooltip(is_offline: bool) -> String {
     if is_offline {
         "Gitlabify (Offline)".to_string()
     } else {

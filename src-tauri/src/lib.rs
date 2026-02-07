@@ -138,5 +138,7 @@ pub fn run() {
             refresh_inbox
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|error| {
+            eprintln!("Error while running tauri application: {}", error);
+        });
 }

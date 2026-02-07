@@ -1,7 +1,7 @@
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_positioner::{Position, WindowExt};
 
-pub fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
+pub(crate) fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let is_visible = window.is_visible().unwrap_or(false);
 

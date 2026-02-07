@@ -1,48 +1,40 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tauri_plugin_keyring::KeyringExt;
 
-use crate::modules::constants::{GITLAB_HOST, SERVICE_NAME, PAT_KEY};
+use crate::modules::constants::{GITLAB_HOST, HTTP_TIMEOUT_SECS, SERVICE_NAME, PAT_KEY};
 use crate::modules::inbox::trigger_poll;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct User {
-    pub id: u64,
-    pub username: String,
-    pub name: String,
+pub(crate) struct User {
+    pub(crate) id: u64,
+    pub(crate) username: String,
+    pub(crate) name: String,
     #[serde(alias = "avatar_url")]
-    pub avatar_url: Option<String>,
+    pub(crate) avatar_url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Error)]
 #[serde(tag = "type", content = "message", rename_all = "camelCase")]
-pub enum AuthError {
+pub(crate) enum AuthError {
+    #[error("Invalid Personal Access Token")]
     InvalidToken,
+    #[error("Network error: {0}")]
     NetworkError(String),
+    #[error("Keychain error: {0}")]
     KeychainError(String),
 }
 
-impl std::fmt::Display for AuthError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AuthError::InvalidToken => write!(f, "Invalid Personal Access Token"),
-            AuthError::NetworkError(msg) => write!(f, "Network error: {}", msg),
-            AuthError::KeychainError(msg) => write!(f, "Keychain error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for AuthError {}
-
 #[tauri::command]
-pub async fn verify_token<R: tauri::Runtime>(
+pub(crate) async fn verify_token<R: tauri::Runtime>(
     _app: tauri::AppHandle<R>,
     token: String,
 ) -> Result<User, AuthError> {
     println!("Backend: verify_token called");
     let client = reqwest::Client::builder()
         .user_agent("gitlabify")
-        .timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
         .build()
         .map_err(|_e| AuthError::NetworkError("Failed to initialize network client".to_string()))?;
 
@@ -95,7 +87,7 @@ pub async fn verify_token<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn save_token<R: tauri::Runtime>(
+pub(crate) async fn save_token<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     token: String,
 ) -> Result<(), AuthError> {
@@ -112,16 +104,15 @@ pub async fn save_token<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn get_token<R: tauri::Runtime>(
+pub(crate) async fn get_token<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
 ) -> Result<Option<String>, AuthError> {
     println!("Backend: get_token called");
     match app.keyring().get_password(SERVICE_NAME, PAT_KEY) {
         Ok(token) => {
-            if token.is_some() {
-                println!("Backend: get_token found token");
-            } else {
-                println!("Backend: get_token returned None");
+            match token {
+                Some(_) => println!("Backend: get_token found token"),
+                None => println!("Backend: get_token returned None"),
             }
             Ok(token)
         }
@@ -137,7 +128,9 @@ pub async fn get_token<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn delete_token<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), AuthError> {
+pub(crate) async fn delete_token<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<(), AuthError> {
     if let Err(e) = app.keyring().delete_password(SERVICE_NAME, PAT_KEY) {
         let err_str = e.to_string();
         if err_str.to_lowercase().contains("not found") {
