@@ -1,10 +1,27 @@
 use crate::modules::tray::update_badge;
 use crate::modules::gitlab::{GitLabClient, InboxData};
-use crate::modules::constants::{GITLAB_HOST, SERVICE_NAME, PAT_KEY, CONSECUTIVE_FAILURE_THRESHOLD, POLLING_INTERVAL_SECONDS};
-use std::sync::{Arc, Mutex};
+use crate::modules::constants::{
+    CONSECUTIVE_FAILURE_THRESHOLD,
+    GITLAB_HOST,
+    INBOX_CACHE_FILE_NAME,
+    INBOX_CACHE_KEY_CONNECTION_STATUS,
+    INBOX_CACHE_KEY_DATA,
+    INBOX_CACHE_KEY_LAST_ERROR,
+    INBOX_CACHE_KEY_LAST_UPDATED_MS,
+    INBOX_CACHE_KEY_UNREAD_COUNT,
+    INBOX_CACHE_STALE_THRESHOLD_MS,
+    INBOX_CACHE_WRITE_DEBOUNCE_MS,
+    PAT_KEY,
+    POLLING_INTERVAL_SECONDS,
+    SERVICE_NAME,
+};
+use serde::de::DeserializeOwned;
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_keyring::KeyringExt;
+use tauri_plugin_store::{Store, StoreExt};
 use tokio::sync::Notify;
 
 fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, label: &str) -> std::sync::MutexGuard<'a, T> {
@@ -25,12 +42,22 @@ pub enum ConnectionStatus {
     Offline,
 }
 
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InboxStalePayload {
+    pub is_stale: bool,
+    pub is_offline: bool,
+    pub last_updated_at_ms: Option<u64>,
+    pub last_error: Option<String>,
+}
+
 pub struct InboxState {
     pub status: Mutex<ConnectionStatus>,
     pub unread_count: Mutex<usize>,
     pub consecutive_failures: Mutex<usize>,
     pub data: Mutex<Option<InboxData>>,
     pub last_error: Mutex<Option<String>>,
+    pub last_updated_at_ms: Mutex<Option<u64>>,
     pub poll_now: Arc<Notify>,
 }
 
@@ -42,6 +69,7 @@ impl InboxState {
             consecutive_failures: Mutex::new(0),
             data: Mutex::new(None),
             last_error: Mutex::new(None),
+            last_updated_at_ms: Mutex::new(None),
             poll_now: Arc::new(Notify::new()),
         }
     }
@@ -95,6 +123,141 @@ impl InboxState {
         let mut last_error = lock_or_recover(&self.last_error, "InboxState last_error");
         *last_error = Some(error);
     }
+
+    pub fn clear_error(&self) {
+        let mut last_error = lock_or_recover(&self.last_error, "InboxState last_error");
+        *last_error = None;
+    }
+
+    pub fn set_status(&self, status: ConnectionStatus) {
+        let mut current_status = lock_or_recover(&self.status, "InboxState status");
+        *current_status = status;
+    }
+
+    pub fn is_offline(&self) -> bool {
+        let status = lock_or_recover(&self.status, "InboxState status");
+        *status == ConnectionStatus::Offline
+    }
+
+    pub fn set_last_updated_at_ms(&self, last_updated_at_ms: Option<u64>) {
+        let mut last_updated = lock_or_recover(&self.last_updated_at_ms, "InboxState last_updated");
+        *last_updated = last_updated_at_ms;
+    }
+
+    pub fn get_last_updated_at_ms(&self) -> Option<u64> {
+        let last_updated = lock_or_recover(&self.last_updated_at_ms, "InboxState last_updated");
+        *last_updated
+    }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_millis() as u64
+}
+
+fn get_inbox_store<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<Store<R>>> {
+    if let Some(store) = app.get_store(INBOX_CACHE_FILE_NAME) {
+        return Some(store);
+    }
+
+    app.store_builder(INBOX_CACHE_FILE_NAME)
+        .auto_save(Duration::from_millis(INBOX_CACHE_WRITE_DEBOUNCE_MS))
+        .build()
+        .ok()
+}
+
+fn read_store_value<T: DeserializeOwned, R: Runtime>(store: &Store<R>, key: &str) -> Option<T> {
+    let value = store.get(key)?;
+    serde_json::from_value(value).ok()
+}
+
+fn write_store_value<T: serde::Serialize, R: Runtime>(
+    store: &Store<R>,
+    key: &str,
+    value: &T,
+) -> Option<()> {
+    let json = serde_json::to_value(value).ok()?;
+    store.set(key, json);
+    Some(())
+}
+
+fn emit_inbox_stale<R: Runtime>(app: &AppHandle<R>, payload: InboxStalePayload) {
+    let _ = app.emit("inbox-stale", payload);
+}
+
+fn load_cached_inbox<R: Runtime>(app: &AppHandle<R>) {
+    let store = match get_inbox_store(app) {
+        Some(store) => store,
+        None => return,
+    };
+
+    let cached_data: Option<InboxData> = read_store_value(&store, INBOX_CACHE_KEY_DATA);
+    let last_updated_at_ms: Option<u64> = read_store_value(&store, INBOX_CACHE_KEY_LAST_UPDATED_MS);
+    let unread_count: Option<usize> = read_store_value(&store, INBOX_CACHE_KEY_UNREAD_COUNT);
+    let is_offline: Option<bool> = read_store_value(&store, INBOX_CACHE_KEY_CONNECTION_STATUS);
+    let last_error: Option<String> = read_store_value(&store, INBOX_CACHE_KEY_LAST_ERROR);
+
+    if let Some(data) = cached_data {
+        let state = app.state::<InboxState>();
+        state.set_data(data.clone());
+        state.set_last_updated_at_ms(last_updated_at_ms);
+        if let Some(true) = is_offline {
+            state.set_status(ConnectionStatus::Offline);
+        }
+        if let Some(count) = unread_count {
+            update_count(app, count);
+        }
+        if let Some(error) = last_error.clone() {
+            state.set_error(error);
+        }
+
+        let _ = app.emit("inbox-updated", data);
+
+        let is_stale = last_updated_at_ms
+            .map(|ts| now_ms().saturating_sub(ts) >= INBOX_CACHE_STALE_THRESHOLD_MS)
+            .unwrap_or(true)
+            || last_error.is_some();
+
+        emit_inbox_stale(
+            app,
+            InboxStalePayload {
+                is_stale,
+                is_offline: state.is_offline(),
+                last_updated_at_ms,
+                last_error,
+            },
+        );
+    }
+}
+
+fn persist_cache_success<R: Runtime>(
+    app: &AppHandle<R>,
+    data: &InboxData,
+    unread_count: usize,
+    last_updated_at_ms: u64,
+) {
+    let store = match get_inbox_store(app) {
+        Some(store) => store,
+        None => return,
+    };
+
+    let _ = write_store_value(&store, INBOX_CACHE_KEY_DATA, data);
+    let _ = write_store_value(&store, INBOX_CACHE_KEY_LAST_UPDATED_MS, &last_updated_at_ms);
+    let _ = write_store_value(&store, INBOX_CACHE_KEY_UNREAD_COUNT, &unread_count);
+    let _ = write_store_value(&store, INBOX_CACHE_KEY_CONNECTION_STATUS, &false);
+    store.delete(INBOX_CACHE_KEY_LAST_ERROR);
+}
+
+fn persist_cache_failure<R: Runtime>(app: &AppHandle<R>, error: &str, is_offline: bool) {
+    let store = match get_inbox_store(app) {
+        Some(store) => store,
+        None => return,
+    };
+
+    let _ = write_store_value(&store, INBOX_CACHE_KEY_CONNECTION_STATUS, &is_offline);
+    let _ = write_store_value(&store, INBOX_CACHE_KEY_LAST_ERROR, &error);
 }
 
 #[cfg(test)]
@@ -151,6 +314,19 @@ mod tests {
             assert!(data.is_some());
         }
     }
+
+    #[test]
+    fn test_inbox_cache_serialization() {
+        let mock_data = InboxData {
+            merge_requests: vec![],
+            todos: vec![],
+            pipelines: vec![],
+        };
+        let json = serde_json::to_value(&mock_data).unwrap();
+        let decoded: InboxData = serde_json::from_value(json).unwrap();
+        assert_eq!(decoded.merge_requests.len(), 0);
+    }
+
 }
 
 pub fn update_connection_status<R: Runtime>(app: &AppHandle<R>, success: bool) {
@@ -197,6 +373,8 @@ pub fn refresh_inbox(app: AppHandle) {
 pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
     let app_handle = app.clone();
     let poll_now = app.state::<InboxState>().poll_now.clone();
+
+    load_cached_inbox(app);
     
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(POLLING_INTERVAL_SECONDS));
@@ -404,6 +582,7 @@ pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
 
                 if has_success {
                     let count = notification_ids.len();
+                    let last_updated_at_ms = now_ms();
                     
                     // Create InboxData struct
                     let inbox_data = InboxData {
@@ -415,12 +594,29 @@ pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
                     // Update state
                     update_count(&app_handle, count);
                     update_connection_status(&app_handle, true);
+                    app_handle
+                        .state::<InboxState>()
+                        .set_last_updated_at_ms(Some(last_updated_at_ms));
+                    app_handle.state::<InboxState>().clear_error();
                     
                     // Store data in state
                     app_handle.state::<InboxState>().set_data(inbox_data.clone());
                     
                     // Emit data to frontend
-                    let _ = app_handle.emit("inbox-updated", inbox_data);
+                    let _ = app_handle.emit("inbox-updated", &inbox_data);
+
+                    emit_inbox_stale(
+                        &app_handle,
+                        InboxStalePayload {
+                            is_stale: false,
+                            is_offline: false,
+                            last_updated_at_ms: Some(last_updated_at_ms),
+                            last_error: None,
+                        },
+                    );
+                    
+                    // Store handles throttling via auto_save, so we always update the in-memory state
+                    persist_cache_success(&app_handle, &inbox_data, count, last_updated_at_ms);
                     
                     if !error_msg.is_empty() {
                         // Log partial error
@@ -431,9 +627,22 @@ pub fn start_polling<R: Runtime>(app: &AppHandle<R>) {
                     // Both failed
                     eprintln!("Polling failed: {}", error_msg);
                     app_handle.state::<InboxState>().set_error(error_msg.clone());
-                    let _ = app_handle.emit("inbox-error", error_msg);
+                    let _ = app_handle.emit("inbox-error", &error_msg);
 
                     update_connection_status(&app_handle, false);
+
+                    let state = app_handle.state::<InboxState>();
+                    let is_offline = state.is_offline();
+                    persist_cache_failure(&app_handle, &error_msg, is_offline);
+                    emit_inbox_stale(
+                        &app_handle,
+                        InboxStalePayload {
+                            is_stale: true,
+                            is_offline,
+                            last_updated_at_ms: state.get_last_updated_at_ms(),
+                            last_error: Some(error_msg),
+                        },
+                    );
                 }
             }
         }

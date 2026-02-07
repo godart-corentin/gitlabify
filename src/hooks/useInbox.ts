@@ -19,7 +19,6 @@ export const useInbox = () => {
 
   useEffect(() => {
     const unlisten = listen<InboxData>("inbox-updated", (event) => {
-      // console.log("Inbox updated via event:", event.payload);
       queryClient.setQueryData(["inbox"], event.payload);
     });
 

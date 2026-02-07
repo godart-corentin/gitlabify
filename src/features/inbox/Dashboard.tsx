@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 import { Inbox, GitMerge, Rocket, RefreshCw } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
@@ -9,14 +10,37 @@ import { refreshInbox } from "../../lib/commands";
 import { InboxList } from "./InboxList";
 
 export const REFRESH_SPINNER_MIN_MS = 500;
+const INBOX_STALE_BANNER_TEXT = "Offline / Cached data";
 
 type DashboardFilter = "notifications" | "mrs" | "pipelines";
+
+type InboxStalePayload = {
+  isStale: boolean;
+  isOffline: boolean;
+  lastUpdatedAtMs?: number | null;
+  lastError?: string | null;
+};
+
+type InboxStaleState = {
+  isStale: boolean;
+  isOffline: boolean;
+  lastUpdatedAtMs: number | null;
+  lastError: string | null;
+};
+
+const DEFAULT_STALE_STATE: InboxStaleState = {
+  isStale: false,
+  isOffline: false,
+  lastUpdatedAtMs: null,
+  lastError: null,
+};
 
 export function Dashboard() {
   const { data, isLoading, error } = useInbox();
   const { user } = useAuth();
   const [filter, setFilter] = useState<DashboardFilter>("notifications");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [staleState, setStaleState] = useState<InboxStaleState>(DEFAULT_STALE_STATE);
   const refreshTimeoutIdRef = useRef<number | null>(null);
 
   const handleRefresh = async () => {
@@ -50,6 +74,22 @@ export function Dashboard() {
       if (refreshTimeoutIdRef.current !== null) {
         window.clearTimeout(refreshTimeoutIdRef.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<InboxStalePayload>("inbox-stale", (event) => {
+      const payload = event.payload;
+      setStaleState({
+        isStale: payload.isStale,
+        isOffline: payload.isOffline,
+        lastUpdatedAtMs: payload.lastUpdatedAtMs ?? null,
+        lastError: payload.lastError ?? null,
+      });
+    });
+
+    return () => {
+      unlisten.then((stop) => stop());
     };
   }, []);
 
@@ -130,6 +170,11 @@ export function Dashboard() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
+        {staleState.isStale && (
+          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide bg-orange-500/10 text-orange-300 border-b border-orange-500/30">
+            {INBOX_STALE_BANNER_TEXT}
+          </div>
+        )}
         <InboxList
           data={data}
           isLoading={isLoading}
