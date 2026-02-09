@@ -195,8 +195,9 @@ fn load_cached_inbox<R: Runtime>(app: &AppHandle<R>) {
     let is_offline: Option<bool> = read_store_value(&store, INBOX_CACHE_KEY_CONNECTION_STATUS);
     let last_error: Option<String> = read_store_value(&store, INBOX_CACHE_KEY_LAST_ERROR);
 
+    let state = app.state::<InboxState>();
+
     if let Some(data) = cached_data {
-        let state = app.state::<InboxState>();
         state.set_data(data.clone());
         state.set_last_updated_at_ms(last_updated_at_ms);
         if let Some(true) = is_offline {
@@ -226,7 +227,28 @@ fn load_cached_inbox<R: Runtime>(app: &AppHandle<R>) {
                 last_error,
             },
         );
+
+        let cached_count = unread_count.unwrap_or_else(|| state.unread_count.load(Ordering::Relaxed));
+        update_badge(app, cached_count, state.is_offline());
+        return;
     }
+
+    let desired_offline = is_offline.unwrap_or(true);
+    let previous_offline = state.is_offline();
+    state.set_status(if desired_offline {
+        ConnectionStatus::Offline
+    } else {
+        ConnectionStatus::Connected
+    });
+    if let Some(error) = last_error {
+        state.set_error(error);
+    }
+
+    if previous_offline != desired_offline {
+        let _ = app.emit("connection-status-changed", desired_offline);
+    }
+
+    update_badge(app, unread_count.unwrap_or(0), desired_offline);
 }
 
 fn persist_cache_success<R: Runtime>(
@@ -336,6 +358,24 @@ pub(crate) fn update_connection_status<R: Runtime>(app: &AppHandle<R>, success: 
     }
 }
 
+pub(crate) fn set_connection_status<R: Runtime>(app: &AppHandle<R>, is_offline: bool) {
+    let state = app.state::<InboxState>();
+    let was_offline = state.is_offline();
+
+    state.set_status(if is_offline {
+        ConnectionStatus::Offline
+    } else {
+        ConnectionStatus::Connected
+    });
+
+    let count = state.unread_count.load(Ordering::Relaxed);
+    update_badge(app, count, is_offline);
+
+    if was_offline != is_offline {
+        let _ = app.emit("connection-status-changed", is_offline);
+    }
+}
+
 pub(crate) fn update_count<R: Runtime>(app: &AppHandle<R>, count: usize) {
     let state = app.state::<InboxState>();
     let (changed, is_offline, _) = state.set_count(count);
@@ -400,7 +440,8 @@ pub(crate) fn start_polling<R: Runtime>(app: &AppHandle<R>) {
                      Ok(Some(token)) => {
                          cached_token = Some(token);
                      }
-                     Ok(None) => {
+                    Ok(None) => {
+                         set_connection_status(&app_handle, true);
                          // No token found, wait for next poll
                          continue; 
                      }
