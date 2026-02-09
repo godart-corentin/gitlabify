@@ -6,7 +6,14 @@ use std::sync::Mutex;
 use tauri::{Emitter, Listener, Manager};
 
 use modules::auth::{delete_token, get_token, save_token, verify_token};
-use modules::inbox::{start_polling, InboxState, get_inbox, get_connection_status, refresh_inbox};
+use modules::inbox::{
+    fetch_inbox,
+    get_connection_status,
+    get_inbox,
+    refresh_inbox,
+    start_polling,
+    InboxState,
+};
 use modules::oauth::{exchange_code_for_token, start_oauth_flow, OAuthState};
 use modules::window_controls::toggle_window;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
@@ -135,7 +142,8 @@ pub fn run() {
             exchange_code_for_token,
             get_inbox,
             get_connection_status,
-            refresh_inbox
+            refresh_inbox,
+            fetch_inbox
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {

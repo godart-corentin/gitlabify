@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useInbox } from "../../hooks/useInbox";
-import { refreshInbox } from "../../lib/commands";
 
 import { DashboardHeader } from "./DashboardHeader";
 import { InboxList } from "./InboxList";
@@ -34,17 +33,18 @@ const DEFAULT_STALE_STATE: InboxStaleState = {
 };
 
 export function Dashboard() {
-  const { data, isLoading, error } = useInbox();
+  const { data, isLoading, isFetching, error, refetch } = useInbox();
   const { user } = useAuth();
   const [filter, setFilter] = useState<InboxFilter>("notifications");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [staleState, setStaleState] = useState<InboxStaleState>(DEFAULT_STALE_STATE);
   const refreshTimeoutIdRef = useRef<number | null>(null);
+  const isInboxLoading = isLoading || isFetching;
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshInbox();
+      await refetch();
       // The backend will emit "inbox-updated", but we can also invalidate
       // to show a loading state if preferred, though the event-driven approach is smoother.
     } finally {
@@ -113,7 +113,7 @@ export function Dashboard() {
         )}
         <InboxList
           data={data}
-          isLoading={isLoading}
+          isLoading={isInboxLoading}
           filter={filter}
           currentUsername={currentUsername}
         />

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 
 import { MOCK_INBOX_DATA } from "../features/inbox/mockInboxData";
-import { getInbox } from "../lib/commands";
+import { fetchInbox } from "../lib/commands";
 import type { InboxData } from "../schemas";
 
 const INBOX_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -16,9 +16,10 @@ export const useInbox = () => {
 
   const query = useQuery({
     queryKey: inboxQueryKey,
-    queryFn: isMockMode ? async () => MOCK_INBOX_DATA : getInbox,
+    queryFn: isMockMode ? async () => MOCK_INBOX_DATA : fetchInbox,
     staleTime: Infinity, // Data is pushed via events
     gcTime: INBOX_CACHE_TTL_MS,
+    retry: false,
   });
 
   useEffect(() => {

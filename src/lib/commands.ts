@@ -60,6 +60,14 @@ export async function getInbox(): Promise<InboxData | null> {
 }
 
 /**
+ * Fetches the inbox data from GitLab immediately.
+ */
+export async function fetchInbox(): Promise<InboxData | null> {
+  const data = await invoke("fetch_inbox");
+  return nullable(InboxDataSchema).judge(data);
+}
+
+/**
  * Gets the current connection status (true if offline).
  */
 export async function getConnectionStatus(): Promise<boolean> {

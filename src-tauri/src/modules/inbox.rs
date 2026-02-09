@@ -146,6 +146,20 @@ impl InboxState {
     }
 }
 
+struct ClientCache {
+    token: Option<String>,
+    client: Option<Arc<GitLabClient>>,
+}
+
+impl ClientCache {
+    fn new() -> Self {
+        Self {
+            token: None,
+            client: None,
+        }
+    }
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -279,6 +293,12 @@ fn persist_cache_failure<R: Runtime>(app: &AppHandle<R>, error: &str, is_offline
     let _ = write_store_value(&store, INBOX_CACHE_KEY_LAST_ERROR, &error);
 }
 
+fn get_cached_inbox_data<R: Runtime>(app: &AppHandle<R>) -> Option<InboxData> {
+    let state = app.state::<InboxState>();
+    let data = lock_or_recover(&state.data, "InboxState data");
+    data.clone()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,18 +426,26 @@ pub(crate) fn refresh_inbox(app: AppHandle) {
     trigger_poll(&app);
 }
 
+#[tauri::command]
+pub(crate) async fn fetch_inbox(app: AppHandle) -> Option<InboxData> {
+    let mut cache = ClientCache::new();
+    fetch_inbox_once(&app, &mut cache).await
+}
+
 pub(crate) fn start_polling<R: Runtime>(app: &AppHandle<R>) {
     let app_handle = app.clone();
     let poll_now = app.state::<InboxState>().poll_now.clone();
 
     load_cached_inbox(app);
-    
     tauri::async_runtime::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(POLLING_INTERVAL_SECONDS));
-        
-        // Cache for connection pooling and token
-        let mut cached_client: Option<Arc<GitLabClient>> = None;
-        let mut cached_token: Option<String> = None;
+        let mut interval = tokio::time::interval_at(
+            tokio::time::Instant::now()
+                + std::time::Duration::from_secs(POLLING_INTERVAL_SECONDS),
+            std::time::Duration::from_secs(POLLING_INTERVAL_SECONDS),
+        );
+
+        let mut cache = ClientCache::new();
+        fetch_inbox_once(&app_handle, &mut cache).await;
 
         loop {
             tokio::select! {
@@ -429,259 +457,274 @@ pub(crate) fn start_polling<R: Runtime>(app: &AppHandle<R>) {
                     println!("Manual poll triggered");
                 }
             }
-            
-            // 1. Host is fixed for MVP
-            let host = GITLAB_HOST.to_string();
-            
-            // 2. Resolve Token (Cache or Keyring)
-            if cached_token.is_none() {
-                 let token_result = app_handle.keyring().get_password(SERVICE_NAME, PAT_KEY);
-                 match token_result {
-                     Ok(Some(token)) => {
-                         cached_token = Some(token);
-                     }
-                    Ok(None) => {
-                         set_connection_status(&app_handle, true);
-                         // No token found, wait for next poll
-                         continue; 
-                     }
-                     Err(e) => {
-                         eprintln!("Keyring error during polling: {}", e);
-                         continue;
-                     }
-                 }
+
+            let _ = fetch_inbox_once(&app_handle, &mut cache).await;
+        }
+    });
+}
+
+async fn fetch_inbox_once<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    cache: &mut ClientCache,
+) -> Option<InboxData> {
+    // 1. Host is fixed for MVP
+    let host = GITLAB_HOST.to_string();
+
+    // 2. Resolve Token (Cache or Keyring)
+    if cache.token.is_none() {
+        let token_result = app_handle.keyring().get_password(SERVICE_NAME, PAT_KEY);
+        match token_result {
+            Ok(Some(token)) => {
+                cache.token = Some(token);
             }
-            
-            // 3. Resolve Client (Reuse or Create)
-            if cached_client.is_none() {
-                if let Some(token) = &cached_token {
-                    match GitLabClient::new(host.clone(), token.clone()) {
-                        Ok(client) => {
-                            cached_client = Some(Arc::new(client));
-                        }
-                        Err(e) => {
-                            let msg = format!("Failed to initialize GitLab client: {}", e);
-                            eprintln!("{}", msg);
-                            app_handle.state::<InboxState>().set_error(msg.clone());
-                            let _ = app_handle.emit("inbox-error", msg);
-                            update_connection_status(&app_handle, false);
-                            continue;
-                        }
-                    }
-                }
+            Ok(None) => {
+                set_connection_status(app_handle, true);
+                // No token found, wait for next poll
+                return get_cached_inbox_data(app_handle);
             }
+            Err(e) => {
+                eprintln!("Keyring error during polling: {}", e);
+                return get_cached_inbox_data(app_handle);
+            }
+        }
+    }
 
-            if let Some(client_arc) = &cached_client {
-                // 4. Concurrent requests
-                let mrs_fut = client_arc.fetch_merge_requests();
-                let todos_fut = client_arc.fetch_todos();
-                
-                let (mrs_res, todos_res) = tokio::join!(mrs_fut, todos_fut);
-
-                let mut mrs = Vec::new();
-                let mut todos = Vec::new();
-                let mut pipelines = Vec::new();
-                let mut notification_ids = HashSet::new();
-                let mut error_msg = String::new();
-                let mut has_success = false;
-                let mut needs_reauth = false; // Flag to clear cache on 401
-
-                match mrs_res {
-                    Ok((fetched_mrs, user)) => {
-                        let user_id = user.id;
-                        // Extract pipelines from the current user's MRs only.
-                        let mut pipeline_ids = HashSet::new();
-                        let mut join_set = tokio::task::JoinSet::new();
-                        
-                        // Deduplication Set: (ProjectId, RefName)
-                        let mut pending_fetches: HashSet<(u64, String)> = HashSet::new();
-
-                        for mr in &fetched_mrs {
-                            if mr.author.id == user_id {
-                                if let Some(pipeline) = &mr.head_pipeline {
-                                    if pipeline_ids.insert(pipeline.id) {
-                                        pipelines.push(pipeline.clone());
-                                    }
-                                } else if let Some(ref_name) = mr.source_branch.as_deref() {
-                                    // Optimization: Deduplicate requests for the same ref
-                                    let key = (mr.project_id, ref_name.to_string());
-                                    if pending_fetches.contains(&key) {
-                                        continue;
-                                    }
-                                    pending_fetches.insert(key.clone());
-
-                                    // Clone for the async task
-                                    let client = client_arc.clone();
-                                    let project_id = mr.project_id;
-                                    let ref_name = ref_name.to_string();
-                                    let username = user.username.clone();
-
-                                    join_set.spawn(async move {
-                                        let res = client
-                                            .fetch_latest_pipeline_for_project_ref(
-                                                project_id,
-                                                &ref_name,
-                                                &username,
-                                            )
-                                            .await;
-                                        res
-                                    });
-                                }
-                            }
-                        }
-
-                        // Process concurrent results & map back to MRs is not strictly needed 
-                        // because we just need to populate the pipelines list associated with user's branches.
-                        // We do lose the direct "This pipeline belongs to MR X" error logging context, 
-                        // but for a dashboard view, getting the pipeline is what matters.
-                        while let Some(res) = join_set.join_next().await {
-                            match res {
-                                Ok(result) => match result {
-                                    Ok(Some(pipeline)) => {
-                                        if pipeline_ids.insert(pipeline.id) {
-                                            pipelines.push(pipeline);
-                                        }
-                                    }
-                                    Ok(None) => {}
-                                    Err(crate::modules::gitlab::GitLabError::Unauthorized) => {
-                                         needs_reauth = true;
-                                    }
-                                    Err(e) => {
-                                        // We can't log MR ID easily here without passing it through, 
-                                        // but since we deduped, it might belong to multiple. 
-                                        error_msg.push_str(&format!("Pipeline fetch error: {}; ", e));
-                                    }
-                                },
-                                Err(e) => {
-                                    error_msg.push_str(&format!("Join error: {}; ", e));
-                                }
-                            }
-                        }
-
-                        println!(
-                            "Extracted {} pipelines from {} MRs for user {}",
-                            pipelines.len(),
-                            fetched_mrs.len(),
-                            user_id
-                        );
-                        
-                        // Identify "Notification" MRs (where user is not author)
-                        for mr in &fetched_mrs {
-                            if mr.author.id != user_id {
-                                notification_ids.insert(mr.id);
-                            }
-                        }
-
-                        mrs = fetched_mrs;
-                        has_success = true;
-                    },
-                    Err(crate::modules::gitlab::GitLabError::Unauthorized) => {
-                        needs_reauth = true;
-                    }
-                    Err(e) => {
-                        error_msg.push_str(&format!("MRs: {}; ", e));
-                    }
+    // 3. Resolve Client (Reuse or Create)
+    if cache.client.is_none() {
+        if let Some(token) = cache.token.as_ref() {
+            match GitLabClient::new(host, token.clone()) {
+                Ok(client) => {
+                    cache.client = Some(Arc::new(client));
                 }
-
-                match todos_res {
-                    Ok(fetched_todos) => {
-                        for todo in &fetched_todos {
-                            if let Some(target) = &todo.target {
-                                notification_ids.insert(target.id);
-                            }
-                        }
-                        todos = fetched_todos;
-                        has_success = true;
-                    },
-                    Err(crate::modules::gitlab::GitLabError::Unauthorized) => {
-                         needs_reauth = true;
-                    }
-                    Err(e) => {
-                        error_msg.push_str(&format!("Todos: {}; ", e));
-                    }
-                }
-
-                if needs_reauth {
-                    eprintln!("Unauthorized: Clearing cached token and client");
-                    cached_token = None;
-                    cached_client = None;
-                    app_handle.state::<InboxState>().set_error("Unauthorized".to_string());
-                    if let Err(e) = app_handle
-                        .keyring()
-                        .delete_password(SERVICE_NAME, PAT_KEY)
-                    {
-                        eprintln!("Failed to delete token from keyring: {}", e);
-                    }
-                    let _ = app_handle.emit("auth-required", ());
-                    update_connection_status(&app_handle, false);
-                    continue; // Skip the rest, retry next loop
-                }
-
-                if has_success {
-                    let count = notification_ids.len();
-                    let last_updated_at_ms = now_ms();
-                    
-                    // Create InboxData struct
-                    let inbox_data = InboxData {
-                        merge_requests: mrs,
-                        todos: todos,
-                        pipelines: pipelines,
-                    };
-
-                    // Update state
-                    update_count(&app_handle, count);
-                    update_connection_status(&app_handle, true);
-                    app_handle
-                        .state::<InboxState>()
-                        .set_last_updated_at_ms(Some(last_updated_at_ms));
-                    app_handle.state::<InboxState>().clear_error();
-                    
-                    // Store data in state
-                    app_handle.state::<InboxState>().set_data(inbox_data.clone());
-                    
-                    // Emit data to frontend
-                    let _ = app_handle.emit("inbox-updated", &inbox_data);
-
-                    emit_inbox_stale(
-                        &app_handle,
-                        InboxStalePayload {
-                            is_stale: false,
-                            is_offline: false,
-                            last_updated_at_ms: Some(last_updated_at_ms),
-                            last_error: None,
-                        },
-                    );
-                    
-                    // Store handles throttling via auto_save, so we always update the in-memory state
-                    persist_cache_success(&app_handle, &inbox_data, count, last_updated_at_ms);
-                    
-                    if !error_msg.is_empty() {
-                        // Log partial error
-                        eprintln!("Partial polling failure: {}", error_msg);
-                        app_handle.state::<InboxState>().set_error(error_msg.clone());
-                    }
-                } else {
-                    // Both failed
-                    eprintln!("Polling failed: {}", error_msg);
-                    app_handle.state::<InboxState>().set_error(error_msg.clone());
-                    let _ = app_handle.emit("inbox-error", &error_msg);
-
-                    update_connection_status(&app_handle, false);
-
-                    let state = app_handle.state::<InboxState>();
-                    let is_offline = state.is_offline();
-                    persist_cache_failure(&app_handle, &error_msg, is_offline);
-                    emit_inbox_stale(
-                        &app_handle,
-                        InboxStalePayload {
-                            is_stale: true,
-                            is_offline,
-                            last_updated_at_ms: state.get_last_updated_at_ms(),
-                            last_error: Some(error_msg),
-                        },
-                    );
+                Err(e) => {
+                    let msg = format!("Failed to initialize GitLab client: {}", e);
+                    eprintln!("{}", msg);
+                    app_handle.state::<InboxState>().set_error(msg.clone());
+                    let _ = app_handle.emit("inbox-error", msg);
+                    update_connection_status(app_handle, false);
+                    return get_cached_inbox_data(app_handle);
                 }
             }
         }
-    });
+    }
+
+    let Some(client_arc) = cache.client.as_ref() else {
+        return get_cached_inbox_data(app_handle);
+    };
+
+    // 4. Concurrent requests
+    let mrs_fut = client_arc.fetch_merge_requests();
+    let todos_fut = client_arc.fetch_todos();
+
+    let (mrs_res, todos_res) = tokio::join!(mrs_fut, todos_fut);
+
+    let mut mrs = Vec::new();
+    let mut todos = Vec::new();
+    let mut pipelines = Vec::new();
+    let mut notification_ids = HashSet::new();
+    let mut error_msg = String::new();
+    let mut has_success = false;
+    let mut needs_reauth = false; // Flag to clear cache on 401
+
+    match mrs_res {
+        Ok((fetched_mrs, user)) => {
+            let user_id = user.id;
+            // Extract pipelines from the current user's MRs only.
+            let mut pipeline_ids = HashSet::new();
+            let mut join_set = tokio::task::JoinSet::new();
+
+            // Deduplication Set: (ProjectId, RefName)
+            let mut pending_fetches: HashSet<(u64, String)> = HashSet::new();
+
+            for mr in &fetched_mrs {
+                if mr.author.id == user_id {
+                    if let Some(pipeline) = &mr.head_pipeline {
+                        if pipeline_ids.insert(pipeline.id) {
+                            pipelines.push(pipeline.clone());
+                        }
+                    } else if let Some(ref_name) = mr.source_branch.as_deref() {
+                        // Optimization: Deduplicate requests for the same ref
+                        let key = (mr.project_id, ref_name.to_string());
+                        if pending_fetches.contains(&key) {
+                            continue;
+                        }
+                        pending_fetches.insert(key.clone());
+
+                        // Clone for the async task
+                        let client = client_arc.clone();
+                        let project_id = mr.project_id;
+                        let ref_name = ref_name.to_string();
+                        let username = user.username.clone();
+
+                        join_set.spawn(async move {
+                            let res = client
+                                .fetch_latest_pipeline_for_project_ref(
+                                    project_id,
+                                    &ref_name,
+                                    &username,
+                                )
+                                .await;
+                            res
+                        });
+                    }
+                }
+            }
+
+            // Process concurrent results & map back to MRs is not strictly needed
+            // because we just need to populate the pipelines list associated with user's branches.
+            // We do lose the direct "This pipeline belongs to MR X" error logging context,
+            // but for a dashboard view, getting the pipeline is what matters.
+            while let Some(res) = join_set.join_next().await {
+                match res {
+                    Ok(result) => match result {
+                        Ok(Some(pipeline)) => {
+                            if pipeline_ids.insert(pipeline.id) {
+                                pipelines.push(pipeline);
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(crate::modules::gitlab::GitLabError::Unauthorized) => {
+                            needs_reauth = true;
+                        }
+                        Err(e) => {
+                            // We can't log MR ID easily here without passing it through,
+                            // but since we deduped, it might belong to multiple.
+                            error_msg.push_str(&format!("Pipeline fetch error: {}; ", e));
+                        }
+                    },
+                    Err(e) => {
+                        error_msg.push_str(&format!("Join error: {}; ", e));
+                    }
+                }
+            }
+
+            println!(
+                "Extracted {} pipelines from {} MRs for user {}",
+                pipelines.len(),
+                fetched_mrs.len(),
+                user_id
+            );
+
+            // Identify "Notification" MRs (where user is not author)
+            for mr in &fetched_mrs {
+                if mr.author.id != user_id {
+                    notification_ids.insert(mr.id);
+                }
+            }
+
+            mrs = fetched_mrs;
+            has_success = true;
+        }
+        Err(crate::modules::gitlab::GitLabError::Unauthorized) => {
+            needs_reauth = true;
+        }
+        Err(e) => {
+            error_msg.push_str(&format!("MRs: {}; ", e));
+        }
+    }
+
+    match todos_res {
+        Ok(fetched_todos) => {
+            for todo in &fetched_todos {
+                if let Some(target) = &todo.target {
+                    notification_ids.insert(target.id);
+                }
+            }
+            todos = fetched_todos;
+            has_success = true;
+        }
+        Err(crate::modules::gitlab::GitLabError::Unauthorized) => {
+            needs_reauth = true;
+        }
+        Err(e) => {
+            error_msg.push_str(&format!("Todos: {}; ", e));
+        }
+    }
+
+    if needs_reauth {
+        eprintln!("Unauthorized: Clearing cached token and client");
+        cache.token = None;
+        cache.client = None;
+        app_handle
+            .state::<InboxState>()
+            .set_error("Unauthorized".to_string());
+        if let Err(e) = app_handle
+            .keyring()
+            .delete_password(SERVICE_NAME, PAT_KEY)
+        {
+            eprintln!("Failed to delete token from keyring: {}", e);
+        }
+        let _ = app_handle.emit("auth-required", ());
+        update_connection_status(app_handle, false);
+        return None; // Skip the rest, retry next loop
+    }
+
+    if has_success {
+        let count = notification_ids.len();
+        let last_updated_at_ms = now_ms();
+
+        // Create InboxData struct
+        let inbox_data = InboxData {
+            merge_requests: mrs,
+            todos,
+            pipelines,
+        };
+
+        // Update state
+        update_count(app_handle, count);
+        update_connection_status(app_handle, true);
+        app_handle
+            .state::<InboxState>()
+            .set_last_updated_at_ms(Some(last_updated_at_ms));
+        app_handle.state::<InboxState>().clear_error();
+
+        // Store data in state
+        app_handle.state::<InboxState>().set_data(inbox_data.clone());
+
+        // Emit data to frontend
+        let _ = app_handle.emit("inbox-updated", &inbox_data);
+
+        emit_inbox_stale(
+            app_handle,
+            InboxStalePayload {
+                is_stale: false,
+                is_offline: false,
+                last_updated_at_ms: Some(last_updated_at_ms),
+                last_error: None,
+            },
+        );
+
+        // Store handles throttling via auto_save, so we always update the in-memory state
+        persist_cache_success(app_handle, &inbox_data, count, last_updated_at_ms);
+
+        if !error_msg.is_empty() {
+            // Log partial error
+            eprintln!("Partial polling failure: {}", error_msg);
+            app_handle.state::<InboxState>().set_error(error_msg.clone());
+        }
+        return Some(inbox_data);
+    } else {
+        // Both failed
+        eprintln!("Polling failed: {}", error_msg);
+        app_handle
+            .state::<InboxState>()
+            .set_error(error_msg.clone());
+        let _ = app_handle.emit("inbox-error", &error_msg);
+
+        update_connection_status(app_handle, false);
+
+        let state = app_handle.state::<InboxState>();
+        let is_offline = state.is_offline();
+        persist_cache_failure(app_handle, &error_msg, is_offline);
+        emit_inbox_stale(
+            app_handle,
+            InboxStalePayload {
+                is_stale: true,
+                is_offline,
+                last_updated_at_ms: state.get_last_updated_at_ms(),
+                last_error: Some(error_msg),
+            },
+        );
+        return get_cached_inbox_data(app_handle);
+    }
 }
