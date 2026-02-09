@@ -12,9 +12,10 @@ const MOCK_INBOX_ENV_FLAG = "true";
 export const useInbox = () => {
   const queryClient = useQueryClient();
   const isMockMode = import.meta.env.VITE_MOCK_INBOX === MOCK_INBOX_ENV_FLAG;
+  const inboxQueryKey = ["inbox", isMockMode ? "mock" : "live"] as const;
 
   const query = useQuery({
-    queryKey: ["inbox", isMockMode ? "mock" : "live"],
+    queryKey: inboxQueryKey,
     queryFn: isMockMode ? async () => MOCK_INBOX_DATA : getInbox,
     staleTime: Infinity, // Data is pushed via events
     gcTime: INBOX_CACHE_TTL_MS,
@@ -25,13 +26,13 @@ export const useInbox = () => {
       return;
     }
     const unlisten = listen<InboxData>("inbox-updated", (event) => {
-      queryClient.setQueryData(["inbox"], event.payload);
+      queryClient.setQueryData(inboxQueryKey, event.payload);
     });
 
     return () => {
       unlisten.then((f) => f());
     };
-  }, [isMockMode, queryClient]);
+  }, [inboxQueryKey, isMockMode, queryClient]);
 
   return query;
 };
