@@ -48,7 +48,7 @@ export const PatSection = ({
       className="flex flex-col gap-4 flex-shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300"
     >
       <div className="space-y-1">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 block">
+        <label className="text-[10px] uppercase tracking-widest font-semibold text-base-content/50 mb-1 block">
           Personal Access Token
         </label>
         <input
@@ -56,21 +56,19 @@ export const PatSection = ({
           value={token}
           onChange={handleTokenChange}
           placeholder="glpat-..."
-          className={`w-full bg-transparent border-b py-1.5 text-sm focus:outline-none transition-colors ${
-            combinedError
-              ? "border-error text-error placeholder:text-error/50"
-              : "border-zinc-200 focus:border-zinc-900"
+          className={`w-full h-10 rounded-md bg-base-100 border text-sm px-3 text-base-content placeholder:text-base-content/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/60 ${
+            combinedError ? "border-error text-error placeholder:text-error/60" : "border-base-300"
           }`}
           disabled={isPending}
           autoFocus
         />
-        {combinedError && <p className="text-[10px] text-error leading-tight">{combinedError}</p>}
+        {combinedError && <p className="text-xs text-error">{combinedError}</p>}
       </div>
 
       <div className="flex flex-col gap-2">
         <button
           type="submit"
-          className="w-full py-2.5 bg-zinc-900 text-white rounded-md text-sm font-medium hover:bg-zinc-800 transition-all disabled:opacity-50 shadow-sm"
+          className="w-full h-10 bg-primary text-primary-content text-sm font-semibold rounded-md transition-colors hover:bg-primary/90 disabled:opacity-60"
           disabled={isPending}
         >
           {isVerifying ? (
@@ -82,7 +80,7 @@ export const PatSection = ({
         <button
           type="button"
           onClick={handleBack}
-          className="text-[10px] text-zinc-400 hover:text-zinc-600 underline decoration-dotted transition-colors text-center py-1"
+          className="text-xs text-base-content/60 hover:text-base-content text-center py-1"
           disabled={isPending}
         >
           Back to OAuth Login

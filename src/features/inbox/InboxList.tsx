@@ -1,12 +1,14 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { MouseEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+
 import type { InboxData } from "../../schemas";
+
 import { InboxEmptyState } from "./InboxEmptyState";
 import { InboxItemList } from "./InboxItemList";
+import { getGroupedItems, getPipelineItems } from "./inboxListUtils";
 import { InboxLoadingState } from "./InboxLoadingState";
 import { PipelineList } from "./PipelineList";
-import { getGroupedItems, getPipelineItems } from "./inboxListUtils";
 import { NO_SELECTION_ID, type InboxFilter, type SelectedItemId } from "./types";
 const FIRST_INDEX = 0;
 const SELECTION_STEP = 1;
@@ -194,14 +196,7 @@ export function InboxList({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [
-    activeItemId,
-    activeItemUrl,
-    currentItemIds,
-    filter,
-    hoveredItemId,
-    isHoverSuppressed,
-  ]);
+  }, [activeItemId, activeItemUrl, currentItemIds, filter, hoveredItemId, isHoverSuppressed]);
 
   const handleListMouseMove = (event: MouseEvent<HTMLDivElement>) => {
     if (isHoverSuppressed) {

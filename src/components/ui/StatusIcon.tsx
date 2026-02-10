@@ -12,13 +12,7 @@ import {
   CircleDashed,
 } from "lucide-react";
 
-export type IconType =
-  | "merge-request"
-  | "review"
-  | "todo"
-  | "pipeline"
-  | "comment"
-  | "mention";
+export type IconType = "merge-request" | "review" | "todo" | "pipeline" | "comment" | "mention";
 
 type StatusIconProps = {
   type: IconType;
@@ -31,42 +25,42 @@ export function StatusIcon({ type, status, className }: StatusIconProps) {
 
   if (type === "merge-request") {
     if (normalizedStatus === "merged")
-      return <GitPullRequest className={clsx("text-indigo-400", className)} />;
+      return <GitPullRequest className={clsx("text-success", className)} />;
     if (normalizedStatus === "closed")
-      return <GitPullRequest className={clsx("text-rose-400", className)} />;
+      return <GitPullRequest className={clsx("text-error", className)} />;
     if (normalizedStatus === "draft")
-      return <GitPullRequest className={clsx("text-zinc-500", className)} />;
-    return <GitPullRequest className={clsx("text-emerald-500", className)} />;
+      return <GitPullRequest className={clsx("text-base-content/50", className)} />;
+    return <GitPullRequest className={clsx("text-primary", className)} />;
   }
 
   if (type === "review" || type === "todo") {
-    return <CheckSquare className={clsx("text-blue-400", className)} />;
+    return <CheckSquare className={clsx("text-info", className)} />;
   }
 
   if (type === "comment") {
-    return <MessageCircle className={clsx("text-blue-400", className)} />;
+    return <MessageCircle className={clsx("text-info", className)} />;
   }
 
   if (type === "mention") {
-    return <AtSign className={clsx("text-fuchsia-400", className)} />;
+    return <AtSign className={clsx("text-info", className)} />;
   }
 
   if (type === "pipeline") {
     switch (normalizedStatus) {
       case "success":
-        return <CheckCircle2 className={clsx("text-emerald-500", className)} />;
+        return <CheckCircle2 className={clsx("text-success", className)} />;
       case "failed":
-        return <XCircle className={clsx("text-rose-500", className)} />;
+        return <XCircle className={clsx("text-error", className)} />;
       case "running":
-        return <PlayCircle className={clsx("text-blue-500 animate-pulse", className)} />;
+        return <PlayCircle className={clsx("text-info animate-pulse", className)} />;
       case "pending":
-        return <Clock className={clsx("text-zinc-500", className)} />;
+        return <Clock className={clsx("text-base-content/50", className)} />;
       case "canceled":
-        return <CircleDashed className={clsx("text-zinc-500", className)} />;
+        return <CircleDashed className={clsx("text-base-content/50", className)} />;
       default:
-        return <CircleDashed className={clsx("text-zinc-500", className)} />;
+        return <CircleDashed className={clsx("text-base-content/50", className)} />;
     }
   }
 
-  return <AlertCircle className={clsx("text-zinc-500", className)} />;
+  return <AlertCircle className={clsx("text-base-content/50", className)} />;
 }

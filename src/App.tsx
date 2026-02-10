@@ -1,21 +1,26 @@
+import { Avatar } from "./components/ui/Avatar";
+import { ThemeSettingsMenu } from "./components/ui/ThemeSettingsMenu";
 import { AuthScreen } from "./features/auth/AuthScreen";
 import { Dashboard } from "./features/inbox/Dashboard";
 import { useAuth } from "./hooks/useAuth";
-import { useLogoutOnAuthRequired } from "./hooks/useLogoutOnAuthRequired";
 import { useConnectionStatus } from "./hooks/useConnectionStatus";
+import { useLogoutOnAuthRequired } from "./hooks/useLogoutOnAuthRequired";
+import { useTheme, type ThemeMode } from "./hooks/useTheme";
 
 export const App = () => {
   const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const { data: isOffline } = useConnectionStatus();
   const handleLogout = () => logout();
+  const handleThemeChange = (mode: ThemeMode) => setTheme(mode);
   useLogoutOnAuthRequired(logout);
 
   const isLoading = isLoadingToken || isLoadingUser;
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-zinc-950">
-        <span className="loading loading-spinner loading-md text-orange-500"></span>
+      <div className="flex items-center justify-center min-h-screen bg-base-100 text-base-content">
+        <span className="loading loading-spinner loading-md text-primary"></span>
       </div>
     );
   }
@@ -25,17 +30,14 @@ export const App = () => {
   }
 
   return (
-    <main
-      className="flex flex-col h-screen bg-zinc-950 text-zinc-200 overflow-hidden"
-      data-theme="zinc"
-    >
-      <header className="flex items-center justify-between p-3 border-b border-zinc-800 flex-shrink-0 bg-zinc-950 z-20">
+    <main className="flex flex-col h-screen bg-base-100 text-base-content overflow-hidden">
+      <header className="flex items-center justify-between h-14 px-4 border-b border-base-300 bg-base-100 flex-shrink-0 z-20">
         <div className="flex items-center gap-2">
           <span className="text-xl">🦊</span>
           <div className="flex flex-col leading-none">
-            <h1 className="text-sm font-semibold tracking-tight">gitlabify</h1>
+            <h1 className="text-sm font-medium tracking-tight">gitlabify</h1>
             {isOffline && (
-              <span className="text-[9px] font-bold text-rose-500 uppercase tracking-tighter">
+              <span className="text-[10px] uppercase tracking-widest font-semibold text-base-content/50 border border-base-300 rounded-full px-2 py-0.5">
                 Offline
               </span>
             )}
@@ -44,25 +46,16 @@ export const App = () => {
 
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-end leading-none">
-            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">
-              {user.username}
-            </span>
+            <span className="text-xs font-mono text-base-content/60">{user.username}</span>
           </div>
 
-          <div className="w-6 h-6 rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center flex-shrink-0 border border-zinc-700">
-            {user.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user.name || "User"}
-                className="w-full h-full object-cover"
-              />
-            ) : null}
-          </div>
+          <ThemeSettingsMenu theme={theme} onThemeChange={handleThemeChange} />
+          <Avatar src={user.avatarUrl} alt={user.name || "User"} size="sm" />
 
           <button
             onClick={handleLogout}
             type="button"
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer border-l border-zinc-800 pl-3"
+            className="text-xs font-medium text-base-content/60 hover:text-base-content border-l border-base-300 pl-3"
           >
             Sign out
           </button>

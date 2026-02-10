@@ -67,7 +67,7 @@ export const OAuthSection = ({
         onClick={handleStartOauth}
         disabled={isPending}
         type="button"
-        className="w-full py-2.5 bg-zinc-900 text-white rounded-md text-sm font-medium hover:bg-zinc-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 flex-shrink-0 shadow-sm"
+        className="w-full h-10 bg-primary text-primary-content text-sm font-semibold rounded-md flex items-center justify-center gap-2 flex-shrink-0 transition-colors hover:bg-primary/90 disabled:opacity-60"
       >
         {isStartingOauth || isExchanging ? (
           <span className="loading loading-spinner loading-xs"></span>
@@ -88,14 +88,14 @@ export const OAuthSection = ({
               value={manualCode}
               onChange={handleManualCodeChange}
               placeholder="Paste OAuth code..."
-              className="w-full bg-zinc-50 border border-zinc-200 rounded-md py-1.5 pl-2 pr-7 text-xs focus:outline-none focus:border-zinc-900 transition-colors"
+              className="w-full h-8 rounded-md bg-base-100 border border-base-300 text-sm px-3 pr-9 text-base-content placeholder:text-base-content/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/60 disabled:opacity-60"
               disabled={isPending}
               autoFocus
             />
             <button
               type="button"
               onClick={handleHideManualCode}
-              className="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-1 leading-none text-sm"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md text-base-content/50 hover:bg-base-200 transition-colors"
               title="Cancel"
             >
               ✕
@@ -103,7 +103,7 @@ export const OAuthSection = ({
           </div>
           <button
             type="submit"
-            className="px-3 py-1.5 bg-zinc-900 text-white rounded-md text-xs font-medium hover:bg-zinc-800 transition-all disabled:opacity-50 shadow-sm whitespace-nowrap"
+            className="h-8 px-3 rounded-md border border-base-300 text-xs font-semibold text-base-content/70 hover:bg-base-200 transition-colors whitespace-nowrap"
             disabled={isPending}
           >
             Verify
@@ -111,14 +111,12 @@ export const OAuthSection = ({
         </form>
       )}
 
-      {combinedError ? (
-        <p className="text-[10px] text-error leading-tight text-center">{combinedError}</p>
-      ) : null}
+      {combinedError ? <p className="text-xs text-error text-center">{combinedError}</p> : null}
 
       <button
         onClick={handleShowPat}
         type="button"
-        className="text-[10px] text-zinc-400 hover:text-zinc-600 underline decoration-dotted transition-colors text-center py-2"
+        className="text-xs text-base-content/60 hover:text-base-content text-center py-2"
       >
         Use Personal Access Token instead
       </button>

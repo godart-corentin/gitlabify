@@ -4,13 +4,8 @@ import { useEffect, useRef } from "react";
 import type { IconType } from "../../components/ui/StatusIcon";
 
 import { InboxItem } from "./InboxItem";
+import { getNormalizedAction, TODO_ACTION, type GroupedItem } from "./inboxListUtils";
 import { NO_SELECTION_ID, type InboxFilter, type SelectedItemId } from "./types";
-import {
-  getNormalizedAction,
-  isDraftTitle,
-  TODO_ACTION,
-  type GroupedItem,
-} from "./inboxListUtils";
 
 const MERGE_REQUEST_URL_PATTERN = /merge_requests\/(\d+)/;
 
@@ -43,9 +38,7 @@ export const InboxItemList = ({
     if (!container) {
       return;
     }
-    const selectedNode = container.querySelector<HTMLElement>(
-      `[data-item-id="${selectedItemId}"]`,
-    );
+    const selectedNode = container.querySelector<HTMLElement>(`[data-item-id="${selectedItemId}"]`);
     if (!selectedNode) {
       return;
     }
@@ -60,15 +53,8 @@ export const InboxItemList = ({
       normalizedAction === TODO_ACTION.DIRECTLY_ADDRESSED;
     const isComment = normalizedAction === TODO_ACTION.COMMENTED;
     const iconType: IconType =
-      filter === "mrs"
-        ? "merge-request"
-        : isMention
-          ? "mention"
-          : isComment
-            ? "comment"
-            : "review";
-    const iconStatus =
-      filter === "mrs" ? "opened" : todo?.state ?? mr?.state ?? "open";
+      filter === "mrs" ? "merge-request" : isMention ? "mention" : isComment ? "comment" : "review";
+    const iconStatus = filter === "mrs" ? "opened" : (todo?.state ?? mr?.state ?? "open");
     const icons: Array<{ key: string; type: IconType; status: string }> = [
       { key: `${iconType}-${item.id}`, type: iconType, status: iconStatus },
     ];
@@ -80,36 +66,25 @@ export const InboxItemList = ({
     }
 
     const fallbackTitle = todo?.body?.trim();
-    const isDraft = !!displayData && (displayData.draft || displayData.workInProgress);
-    const isDraftTitleHint = !!displayData?.title && isDraftTitle(displayData.title);
-    const isDraftState = isDraft || isDraftTitleHint;
     const mergeRequestId =
       displayData?.iid ??
       displayData?.id ??
       todo?.target?.iid ??
       todo?.target?.id ??
       (todo?.targetUrl ? MERGE_REQUEST_URL_PATTERN.exec(todo.targetUrl)?.[1] : null);
-    const titleSuffix =
+    const titleText =
       displayData?.title ||
       fallbackTitle ||
-      (isMention ? "Mentioned in a merge request" : "New comment on a merge request");
-    const prefixLabel = mergeRequestId
-      ? `${isDraftState ? "Draft" : "MR"} #${mergeRequestId}`
-      : null;
-    const prefixClassName = "text-white font-semibold";
-    const title = prefixLabel ? (
-      <span className="truncate">
-        <span className={prefixClassName}>{prefixLabel}</span>
-        {titleSuffix ? (
-          <span className="text-zinc-200">
-            <span className="mx-2 text-zinc-500">·</span>
-            {titleSuffix}
-          </span>
-        ) : null}
-      </span>
-    ) : (
-      titleSuffix
-    );
+      (isMention ? "Mentioned in a merge request" : "New comment on a merge request") ||
+      "Notification";
+    const idLabel = mergeRequestId ? `#${mergeRequestId}` : null;
+    const subtitle =
+      displayData?.sourceBranch ||
+      (isMention
+        ? "Mentioned in merge request"
+        : isComment
+          ? "Commented on merge request"
+          : (todo?.targetType ?? null));
 
     const author = displayData?.author || todo!.author;
     const webUrl = displayData?.webUrl || todo!.targetUrl!;
@@ -121,7 +96,9 @@ export const InboxItemList = ({
       <InboxItem
         key={item.id}
         icons={icons}
-        title={title}
+        idLabel={idLabel}
+        title={titleText}
+        subtitle={subtitle}
         author={author}
         updatedAt={updatedAt}
         webUrl={webUrl}

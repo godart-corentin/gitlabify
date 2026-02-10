@@ -91,11 +91,11 @@ export function Dashboard() {
   const currentUsername = user?.username;
 
   if (error) {
-    return <div className="p-4 text-red-500">Error loading inbox: {error.message}</div>;
+    return <div className="p-4 text-error">Error loading inbox: {error.message}</div>;
   }
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
+    <div className="flex flex-col h-full">
       {/* Header / Tabs */}
       <DashboardHeader
         filter={filter}
@@ -107,7 +107,7 @@ export function Dashboard() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {staleState.isStale && (
-          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide bg-orange-500/10 text-orange-300 border-b border-orange-500/30">
+          <div className="text-[10px] uppercase tracking-widest font-semibold text-base-content/60 bg-base-200 border-b border-base-300 px-4 py-2">
             {INBOX_STALE_BANNER_TEXT}
           </div>
         )}

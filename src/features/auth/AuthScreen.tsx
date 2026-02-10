@@ -3,12 +3,11 @@ import { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 
 import { AuthHeader } from "./AuthHeader";
+import { getAuthErrorMessage } from "./get-auth-error-message";
 import { OAuthSection } from "./OAuthSection";
 import { PatSection } from "./PatSection";
-import { getAuthErrorMessage } from "./get-auth-error-message";
 import { useAuthScreenListeners } from "./useAuthScreenListeners";
 
-const AUTH_THEME = "zinc";
 const SECRET_CLICK_THRESHOLD = 5;
 
 export const AuthScreen = () => {
@@ -91,19 +90,21 @@ export const AuthScreen = () => {
     oauthErrorMessage || (!showPAT && authError instanceof Error ? authError.message : null);
 
   return (
-    <div className="flex flex-col h-screen bg-base-100 p-4 text-base-content" data-theme={AUTH_THEME}>
-      <div className="w-full h-full flex flex-col">
+    <div className="flex h-screen items-center justify-center bg-base-100 p-4">
+      <div className="w-full max-w-sm border border-base-300 rounded-md p-6 flex flex-col">
         <AuthHeader />
 
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto pr-1">
           <div className="mb-6 flex-shrink-0">
             <h2
-              className="text-lg font-medium cursor-default select-none"
+              className="text-sm font-medium cursor-default select-none"
               onClick={handleSecretClick}
             >
               Authenticate
             </h2>
-            <p className="text-xs text-zinc-500">Sign in to your GitLab account to continue.</p>
+            <p className="text-xs text-base-content/60">
+              Sign in to your GitLab account to continue.
+            </p>
           </div>
 
           <div className="flex flex-col gap-4">

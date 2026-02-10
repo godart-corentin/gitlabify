@@ -20,7 +20,7 @@ export const getAuthErrorMessage = ({
 
   if (judgmentResult.type === "success") {
     const errorType = judgmentResult.data.type;
-    return errorType === "invalidToken" ? "Invalid Personal Access Token" : "Authentication failed";  
+    return errorType === "invalidToken" ? "Invalid Personal Access Token" : "Authentication failed";
   }
 
   if (error instanceof Error) return error.message;

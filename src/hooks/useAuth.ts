@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { MOCK_INBOX_DATA } from "../features/inbox/mockInboxData";
 import type { User } from "../lib/commands";
 import {
   getToken,
@@ -9,7 +10,6 @@ import {
   startOauthFlow,
   exchangeCodeForToken,
 } from "../lib/commands";
-import { MOCK_INBOX_DATA } from "../features/inbox/mockInboxData";
 
 const AUTH_USER_CACHE_TTL_MS = 1000 * 60 * 60;
 const MOCK_INBOX_ENV_FLAG = "true";

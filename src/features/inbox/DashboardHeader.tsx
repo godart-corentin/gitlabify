@@ -21,19 +21,19 @@ const TABS: Array<{
     id: "notifications",
     label: "My Notifications",
     shortLabel: "Inbox",
-    icon: <Inbox className="w-4 h-4" />,
+    icon: <Inbox className="h-4 w-4" />,
   },
   {
     id: "mrs",
     label: "My MRs",
     shortLabel: "My MRs",
-    icon: <GitMerge className="w-4 h-4" />,
+    icon: <GitMerge className="h-4 w-4" />,
   },
   {
     id: "pipelines",
     label: "My Pipelines",
     shortLabel: "My Pipelines",
-    icon: <Rocket className="w-4 h-4" />,
+    icon: <Rocket className="h-4 w-4" />,
   },
 ];
 
@@ -55,44 +55,45 @@ export const DashboardHeader = ({
     onRefresh();
   };
 
-  const tabButtons = TABS.map((tab) => (
-    <button
-      key={tab.id}
-      data-tab-id={tab.id}
-      onClick={handleTabClick}
-      title={tab.label}
-      type="button"
-      className={clsx(
-        "h-8 px-2.5 rounded-md transition-all duration-200 flex items-center justify-center gap-2 overflow-hidden",
-        filter === tab.id
-          ? "bg-zinc-800 text-orange-500 w-auto"
-          : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 w-9",
-      )}
-    >
-      <span className="shrink-0">{tab.icon}</span>
-      {filter === tab.id && (
-        <span className="text-xs font-semibold whitespace-nowrap animate-in fade-in slide-in-from-left-1 duration-200">
-          {tab.shortLabel}
-        </span>
-      )}
-    </button>
-  ));
+  const tabButtons = TABS.map((tab) => {
+    const isActive = filter === tab.id;
+
+    return (
+      <button
+        key={tab.id}
+        data-tab-id={tab.id}
+        onClick={handleTabClick}
+        title={tab.label}
+        type="button"
+        aria-pressed={isActive}
+        className={clsx(
+          "h-8 px-3 text-xs font-semibold rounded-full flex items-center gap-2 transition-colors",
+          isActive
+            ? "bg-base-200 text-base-content"
+            : "text-base-content/60 hover:bg-base-200 hover:text-base-content",
+        )}
+      >
+        <span className="shrink-0">{tab.icon}</span>
+        {isActive ? <span className="whitespace-nowrap">{tab.shortLabel}</span> : null}
+      </button>
+    );
+  });
 
   return (
-    <div className="flex flex-col border-b border-zinc-800 bg-zinc-900 sticky top-0 z-10">
-      <div className="flex items-center justify-between p-2">
-        <div className="flex items-center gap-1">{tabButtons}</div>
+    <div className="flex flex-col sticky top-0 z-10 bg-base-100 border-b border-base-300">
+      <div className="flex items-center justify-between px-4 py-2">
+        <div className="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-100 p-1">
+          {tabButtons}
+        </div>
 
         <button
           onClick={handleRefreshClick}
           disabled={isRefreshing}
           type="button"
-          className="h-8 w-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all disabled:opacity-50"
+          className="h-8 w-8 rounded-md border border-base-300 text-base-content/60 hover:bg-base-200 transition-colors disabled:opacity-60 flex items-center justify-center"
           title="Refresh Inbox"
         >
-          <RefreshCw
-            className={clsx("w-3.5 h-3.5", isRefreshing && "animate-spin text-orange-500")}
-          />
+          <RefreshCw className={clsx("h-4 w-4", isRefreshing && "animate-spin text-primary")} />
         </button>
       </div>
     </div>

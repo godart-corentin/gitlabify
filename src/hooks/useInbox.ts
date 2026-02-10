@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 import { MOCK_INBOX_DATA } from "../features/inbox/mockInboxData";
 import { fetchInbox } from "../lib/commands";
@@ -12,7 +12,10 @@ const MOCK_INBOX_ENV_FLAG = "true";
 export const useInbox = () => {
   const queryClient = useQueryClient();
   const isMockMode = import.meta.env.VITE_MOCK_INBOX === MOCK_INBOX_ENV_FLAG;
-  const inboxQueryKey = ["inbox", isMockMode ? "mock" : "live"] as const;
+  const inboxQueryKey = useMemo(
+    () => ["inbox", isMockMode ? "mock" : "live"] as const,
+    [isMockMode],
+  );
 
   const query = useQuery({
     queryKey: inboxQueryKey,

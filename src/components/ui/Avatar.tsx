@@ -18,7 +18,7 @@ export function Avatar({ src, alt, size = "md", className }: AvatarProps) {
   return (
     <div
       className={clsx(
-        "rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0",
+        "rounded-full ring-1 ring-base-300 bg-base-200 flex items-center justify-center shrink-0 overflow-hidden",
         sizeClasses[size],
         className,
       )}
@@ -26,7 +26,7 @@ export function Avatar({ src, alt, size = "md", className }: AvatarProps) {
       {src ? (
         <img src={src} alt={alt} className="w-full h-full object-cover" />
       ) : (
-        <UserIcon className="w-1/2 h-1/2 text-zinc-500" />
+        <UserIcon className="w-1/2 h-1/2 text-base-content/40" />
       )}
     </div>
   );

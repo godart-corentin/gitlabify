@@ -1,6 +1,7 @@
-import { SubmitEvent, useState } from "react";
+import { useState, type SubmitEvent } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
+
 import { getAuthErrorMessage } from "./get-auth-error-message";
 import { useAuthScreenListeners } from "./useAuthScreenListeners";
 

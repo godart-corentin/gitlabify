@@ -1,127 +1,66 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 @plugin "daisyui";
 
 @theme {
-  --color-primary: #e24329; /* GitLab Orange */
-  --color-primary-content: #ffffff;
+  --font-sans: "Inter", "SF Pro Display", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @plugin "daisyui" {
-  themes: zinc, dark;
+  themes: light, dark;
 }
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  --inbox-selection-caret-width-px: 10px;
-  --inbox-selection-caret-height-px: 12px;
-  --inbox-selection-cursor-offset-x-px: 6px;
-  --inbox-selection-cursor-travel-px: 6px;
-  --inbox-selection-cursor-anim-ms: 1000ms;
-  --inbox-selection-gutter-px: 12px;
-  --inbox-selection-glow-blur-px: 12px;
-  --inbox-selection-glow-opacity: 0.35;
-  --inbox-selection-sheen-width-px: 120px;
-  --inbox-selection-sheen-opacity: 0.08;
-  --inbox-active-bg: #151518;
-  --inbox-selection-sheen-anim-ms: 1400ms;
-  --color-primary: #e24329;
-  --color-primary-rgb: 226 67 41;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  display: flex;
-  flex-direction: column;
-}
-
-#root {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-@keyframes inbox-selection-cursor-slide {
-  0% {
-    transform: translate(var(--inbox-selection-cursor-offset-x-px), -50%);
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
   }
-  100% {
-    transform: translate(
-      calc(
-        var(--inbox-selection-cursor-offset-x-px) +
-          var(--inbox-selection-cursor-travel-px)
-      ),
-      -50%
-    );
+
+  :root,
+  [data-theme="light"] {
+    --color-primary: #f97316;
+    --color-primary-content: #ffffff;
+    --color-base-100: #ffffff;
+    --color-base-200: #f4f4f5;
+    --color-base-300: #e4e4e7;
+    --color-base-content: #09090b;
+    --color-neutral: #fafafa;
+    --color-success: #16a34a;
+    --color-error: #dc2626;
+    --color-info: #2563eb;
   }
-}
 
-@keyframes inbox-selection-sheen {
-  0% {
-    background-position: calc(-1 * var(--inbox-selection-sheen-width-px)) 0;
+  [data-theme="dark"] {
+    --color-primary: #fb923c;
+    --color-primary-content: #09090b;
+    --color-base-100: #09090b;
+    --color-base-200: #18181b;
+    --color-base-300: #27272a;
+    --color-base-content: #ededed;
+    --color-neutral: #18181b;
+    --color-success: #22c55e;
+    --color-error: #ef4444;
+    --color-info: #60a5fa;
   }
-  100% {
-    background-position: calc(100% + var(--inbox-selection-sheen-width-px)) 0;
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
   }
-}
 
-.inbox-hoverable {
-  position: relative;
-}
+  body {
+    @apply bg-base-100 text-base-content font-sans;
+  }
 
-.inbox-row {
-  padding-left: calc(var(--inbox-row-padding-x) + var(--inbox-selection-gutter-px));
-  padding-right: var(--inbox-row-padding-x);
-}
-
-.inbox-active-bg {
-  background-color: var(--inbox-active-bg);
-}
-
-.inbox-selected::before,
-.inbox-hovered::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: var(--inbox-selection-caret-width-px);
-  height: var(--inbox-selection-caret-height-px);
-  display: block;
-  background-color: var(--color-primary);
-  clip-path: polygon(0 0, 0 100%, 100% 50%);
-  animation: inbox-selection-cursor-slide var(--inbox-selection-cursor-anim-ms) linear
-    infinite alternate;
-}
-
-.inbox-selected::after,
-.inbox-hovered::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgb(var(--color-primary-rgb) / var(--inbox-selection-sheen-opacity)),
-    transparent
-  );
-  background-repeat: no-repeat;
-  background-size: var(--inbox-selection-sheen-width-px) 100%;
-  background-position: calc(-1 * var(--inbox-selection-sheen-width-px)) 0;
-  animation: inbox-selection-sheen var(--inbox-selection-sheen-anim-ms) ease-in-out
-    infinite;
-  pointer-events: none;
+  #root {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
 }

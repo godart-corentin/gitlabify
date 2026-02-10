@@ -28,7 +28,7 @@ export const getNormalizedAction = (actionName?: string | null) =>
 
 export const getPipelineItems = (data?: InboxData | null) => {
   if (!data) return [];
-  return [...data.pipelines].sort(
+  return data.pipelines.toSorted(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
 };
@@ -87,9 +87,9 @@ export const getGroupedItems = (
     const isTodoAuthor = currentUsername && todo?.author.username === currentUsername;
     const targetMrAuthor = todo?.target?.author.username;
     const isTargetMrMine = currentUsername && targetMrAuthor === currentUsername;
-    const isTargetMrNotMine = currentUsername && targetMrAuthor && targetMrAuthor !== currentUsername;
-    const isDraft =
-      mr?.draft || mr?.workInProgress || (mr?.title ? isDraftTitle(mr.title) : false);
+    const isTargetMrNotMine =
+      currentUsername && targetMrAuthor && targetMrAuthor !== currentUsername;
+    const isDraft = mr?.draft || mr?.workInProgress || (mr?.title ? isDraftTitle(mr.title) : false);
     const normalizedAction = getNormalizedAction(todo?.actionName);
     const isCommentTodo = normalizedAction === TODO_ACTION.COMMENTED;
     const isMentionTodo =

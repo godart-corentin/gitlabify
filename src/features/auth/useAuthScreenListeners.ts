@@ -22,7 +22,9 @@ export const useAuthScreenListeners = ({
           await exchangeCode(code);
         }
       } catch (err: unknown) {
-        setOauthErrorMessage(`OAuth Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+        setOauthErrorMessage(
+          `OAuth Error: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
       }
     });
 
