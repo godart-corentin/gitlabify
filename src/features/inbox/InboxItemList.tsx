@@ -78,8 +78,9 @@ export const InboxItemList = ({
       (isMention ? "Mentioned in a merge request" : "New comment on a merge request") ||
       "Notification";
     const idLabel = mergeRequestId ? `#${mergeRequestId}` : null;
+    const branchName = displayData?.sourceBranch ?? null;
     const subtitle =
-      displayData?.sourceBranch ||
+      branchName ??
       (isMention
         ? "Mentioned in merge request"
         : isComment
@@ -99,6 +100,7 @@ export const InboxItemList = ({
         idLabel={idLabel}
         title={titleText}
         subtitle={subtitle}
+        branchName={branchName}
         author={author}
         updatedAt={updatedAt}
         webUrl={webUrl}

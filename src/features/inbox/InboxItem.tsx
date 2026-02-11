@@ -1,5 +1,7 @@
+import type { MouseEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { clsx } from "clsx";
+import { Copy } from "lucide-react";
 
 import { Avatar } from "../../components/ui/Avatar";
 import type { IconType } from "../../components/ui/StatusIcon";
@@ -20,6 +22,7 @@ type InboxItemProps = {
   idLabel?: string | null;
   title: string;
   subtitle?: string | null;
+  branchName?: string | null;
   author: Author;
   updatedAt: string;
   webUrl: string;
@@ -37,6 +40,7 @@ export function InboxItem({
   idLabel,
   title,
   subtitle,
+  branchName,
   author,
   updatedAt,
   webUrl,
@@ -60,6 +64,19 @@ export function InboxItem({
     <StatusIcon key={icon.key} type={icon.type} status={icon.status} className="h-5 w-5" />
   ));
 
+  const handleCopyBranch = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!branchName || !navigator.clipboard) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(branchName);
+    } catch {
+      // Ignore clipboard errors to avoid blocking navigation.
+    }
+  };
+
   return (
     <div
       onClick={handleClick}
@@ -82,7 +99,22 @@ export function InboxItem({
           <span className="text-sm font-medium text-base-content truncate">{title}</span>
         </div>
         {subtitle ? (
-          <span className="text-xs font-mono text-base-content/50 truncate">{subtitle}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-mono text-base-content/50 truncate min-w-0 flex-1">
+              {subtitle}
+            </span>
+            {branchName ? (
+              <button
+                type="button"
+                className="inline-flex items-center justify-center h-5 w-5 rounded text-base-content/40 hover:text-base-content/70 hover:bg-base-200/60 transition-colors cursor-pointer"
+                aria-label="Copy branch name"
+                title="Copy branch name"
+                onClick={handleCopyBranch}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
