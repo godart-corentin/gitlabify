@@ -91,7 +91,7 @@ export const AuthScreen = () => {
 
   return (
     <div className="flex h-screen items-center justify-center bg-base-100 p-4">
-      <div className="w-full max-w-sm border border-base-300 rounded-md p-6 flex flex-col">
+      <div className="w-full max-w-sm rounded-md p-6 flex flex-col">
         <AuthHeader />
 
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto pr-1">

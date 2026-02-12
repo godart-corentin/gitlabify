@@ -7,12 +7,7 @@ use tauri::{Emitter, Listener, Manager};
 
 use modules::auth::{delete_token, get_token, save_token, verify_token};
 use modules::inbox::{
-    fetch_inbox,
-    get_connection_status,
-    get_inbox,
-    refresh_inbox,
-    start_polling,
-    InboxState,
+    fetch_inbox, get_connection_status, get_inbox, refresh_inbox, start_polling, InboxState,
 };
 use modules::oauth::{exchange_code_for_token, start_oauth_flow, OAuthState};
 use modules::window_controls::toggle_window;
@@ -26,6 +21,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_keyring::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {

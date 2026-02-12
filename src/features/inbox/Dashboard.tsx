@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useInbox } from "../../hooks/useInbox";
+import { useInboxNotifications } from "../../hooks/useInboxNotifications";
 
 import { DashboardHeader } from "./DashboardHeader";
 import { InboxList } from "./InboxList";
@@ -35,6 +36,8 @@ const DEFAULT_STALE_STATE: InboxStaleState = {
 export function Dashboard() {
   const { data, isLoading, isFetching, error, refetch } = useInbox();
   const { user } = useAuth();
+  const currentUsername = user?.username;
+  useInboxNotifications(data, currentUsername);
   const [filter, setFilter] = useState<InboxFilter>("notifications");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [staleState, setStaleState] = useState<InboxStaleState>(DEFAULT_STALE_STATE);
@@ -86,9 +89,6 @@ export function Dashboard() {
       unlisten.then((stop) => stop());
     };
   }, []);
-
-  // Initialize authorFilter to current user once user is loaded
-  const currentUsername = user?.username;
 
   if (error) {
     return <div className="p-4 text-error">Error loading inbox: {error.message}</div>;
