@@ -1597,7 +1597,6 @@ dependencies = [
 name = "gitlabify"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "base64 0.22.1",
  "dotenvy",
  "image",
@@ -1618,6 +1617,7 @@ dependencies = [
  "tauri-plugin-store",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "url",
  "urlencoding",
 ]
