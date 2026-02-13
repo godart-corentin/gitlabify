@@ -58,7 +58,14 @@ pub fn run() {
 }
 
 fn init_tracing() {
-    // Tauri may install a subscriber in app runtime; this keeps a single init point for future wiring.
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(false)
+        .compact()
+        .try_init();
 }
 
 fn setup_application<R: Runtime>(app: &mut App<R>) -> Result<(), Box<dyn std::error::Error>> {
