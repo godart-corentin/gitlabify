@@ -20,7 +20,16 @@ export const getAuthErrorMessage = ({
 
   if (judgmentResult.type === "success") {
     const errorType = judgmentResult.data.type;
-    return errorType === "invalidToken" ? "Invalid Personal Access Token" : "Authentication failed";
+    if (errorType === "invalidToken") {
+      return "Invalid Personal Access Token";
+    }
+    if (errorType === "insufficientScope") {
+      return (
+        judgmentResult.data.message ||
+        "Token permissions are insufficient. Required scopes include api/read_api and read_user."
+      );
+    }
+    return "Authentication failed";
   }
 
   if (error instanceof Error) return error.message;

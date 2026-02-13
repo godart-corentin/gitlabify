@@ -11,10 +11,12 @@ use crate::modules::constants::{
     INBOX_CACHE_KEY_UNREAD_COUNT,
     INBOX_CACHE_STALE_THRESHOLD_MS,
     INBOX_CACHE_WRITE_DEBOUNCE_MS,
+    OAUTH_REFRESH_TOKEN_KEY,
     PAT_KEY,
     POLLING_INTERVAL_SECONDS,
     SERVICE_NAME,
 };
+use crate::modules::oauth::{delete_refresh_token, refresh_access_token, store_refresh_token};
 use serde::de::DeserializeOwned;
 use std::collections::HashSet;
 use std::sync::{
@@ -247,7 +249,7 @@ fn load_cached_inbox<R: Runtime>(app: &AppHandle<R>) {
         return;
     }
 
-    let desired_offline = is_offline.unwrap_or(true);
+    let desired_offline = is_offline.unwrap_or(false);
     let previous_offline = state.is_offline();
     state.set_status(if desired_offline {
         ConnectionStatus::Offline
@@ -396,6 +398,30 @@ pub(crate) fn set_connection_status<R: Runtime>(app: &AppHandle<R>, is_offline: 
     }
 }
 
+pub(crate) fn clear_stale_and_mark_online<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<InboxState>();
+    state.clear_error();
+    state.consecutive_failures.store(0, Ordering::Relaxed);
+    let last_updated_at_ms = state.get_last_updated_at_ms();
+    drop(state);
+
+    if let Some(store) = get_inbox_store(app) {
+        let _ = write_store_value(&store, INBOX_CACHE_KEY_CONNECTION_STATUS, &false);
+        store.delete(INBOX_CACHE_KEY_LAST_ERROR);
+    }
+
+    set_connection_status(app, false);
+    emit_inbox_stale(
+        app,
+        InboxStalePayload {
+            is_stale: false,
+            is_offline: false,
+            last_updated_at_ms,
+            last_error: None,
+        },
+    );
+}
+
 pub(crate) fn update_count<R: Runtime>(app: &AppHandle<R>, count: usize) {
     let state = app.state::<InboxState>();
     let (changed, is_offline, _) = state.set_count(count);
@@ -466,6 +492,14 @@ pub(crate) fn start_polling<R: Runtime>(app: &AppHandle<R>) {
 async fn fetch_inbox_once<R: Runtime>(
     app_handle: &AppHandle<R>,
     cache: &mut ClientCache,
+) -> Option<InboxData> {
+    fetch_inbox_once_with_retry(app_handle, cache, true).await
+}
+
+async fn fetch_inbox_once_with_retry<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    cache: &mut ClientCache,
+    allow_refresh_retry: bool,
 ) -> Option<InboxData> {
     // 1. Host is fixed for MVP
     let host = GITLAB_HOST.to_string();
@@ -584,7 +618,7 @@ async fn fetch_inbox_once<R: Runtime>(
                         }
                         Ok(None) => {}
                         Err(crate::modules::gitlab::GitLabError::Unauthorized) => {
-                            needs_reauth = true;
+                            error_msg.push_str("Pipeline access unauthorized; ");
                         }
                         Err(e) => {
                             // We can't log MR ID easily here without passing it through,
@@ -642,6 +676,10 @@ async fn fetch_inbox_once<R: Runtime>(
     }
 
     if needs_reauth {
+        if allow_refresh_retry && refresh_cached_oauth_session(app_handle, cache).await {
+            return Box::pin(fetch_inbox_once_with_retry(app_handle, cache, false)).await;
+        }
+
         eprintln!("Unauthorized: Clearing cached token and client");
         cache.token = None;
         cache.client = None;
@@ -654,6 +692,7 @@ async fn fetch_inbox_once<R: Runtime>(
         {
             eprintln!("Failed to delete token from keyring: {}", e);
         }
+        let _ = delete_refresh_token(app_handle);
         let _ = app_handle.emit("auth-required", ());
         update_connection_status(app_handle, false);
         return None; // Skip the rest, retry next loop
@@ -715,16 +754,72 @@ async fn fetch_inbox_once<R: Runtime>(
 
         let state = app_handle.state::<InboxState>();
         let is_offline = state.is_offline();
+        let cached_data = get_cached_inbox_data(app_handle);
+        let has_cached_data = cached_data.is_some();
         persist_cache_failure(app_handle, &error_msg, is_offline);
         emit_inbox_stale(
             app_handle,
             InboxStalePayload {
-                is_stale: true,
+                is_stale: has_cached_data,
                 is_offline,
                 last_updated_at_ms: state.get_last_updated_at_ms(),
                 last_error: Some(error_msg),
             },
         );
-        return get_cached_inbox_data(app_handle);
+        return cached_data;
     }
+}
+
+async fn refresh_cached_oauth_session<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    cache: &mut ClientCache,
+) -> bool {
+    let refresh_token = match app_handle
+        .keyring()
+        .get_password(SERVICE_NAME, OAUTH_REFRESH_TOKEN_KEY)
+    {
+        Ok(token) => token,
+        Err(error) => {
+            eprintln!("Failed to read refresh token from keyring: {}", error);
+            return false;
+        }
+    };
+
+    let Some(refresh_token) = refresh_token else {
+        return false;
+    };
+
+    let refreshed = match refresh_access_token(&refresh_token).await {
+        Ok(response) => response,
+        Err(error) => {
+            let error_message = error.to_string();
+            let lower = error_message.to_lowercase();
+            if lower.contains("invalid_grant")
+                || lower.contains("invalid refresh token")
+                || lower.contains("refresh token revoked")
+            {
+                let _ = delete_refresh_token(app_handle);
+            }
+            eprintln!("OAuth refresh attempt failed: {}", error_message);
+            return false;
+        }
+    };
+
+    if let Err(error) = app_handle
+        .keyring()
+        .set_password(SERVICE_NAME, PAT_KEY, &refreshed.access_token)
+    {
+        eprintln!("Failed to persist refreshed access token: {}", error);
+        return false;
+    }
+
+    let refresh_token_to_store = refreshed.refresh_token.as_deref().unwrap_or(&refresh_token);
+    if let Err(error) = store_refresh_token(app_handle, Some(refresh_token_to_store)) {
+        eprintln!("Failed to persist refreshed OAuth token set: {}", error);
+        return false;
+    }
+
+    cache.token = Some(refreshed.access_token);
+    cache.client = None;
+    true
 }

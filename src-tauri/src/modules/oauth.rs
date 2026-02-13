@@ -1,16 +1,29 @@
+use anyhow::{Context, Result as AnyResult};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::{distributions::Alphanumeric, Rng};
 use sha2::{Digest, Sha256};
 use std::sync::{Mutex, MutexGuard};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, Runtime, State};
+use tauri_plugin_keyring::KeyringExt;
 use tauri_plugin_opener::OpenerExt;
-use anyhow::{Context, Result as AnyResult};
 
 use crate::modules::auth::{save_token, verify_token, User};
-use crate::modules::constants::{GITLAB_HOST, OAUTH_VERIFIER_LENGTH};
+use crate::modules::constants::{
+    GITLAB_HOST,
+    OAUTH_REFRESH_TOKEN_KEY,
+    OAUTH_VERIFIER_LENGTH,
+    SERVICE_NAME,
+};
 
 pub(crate) struct OAuthState {
     pub(crate) code_verifier: Mutex<Option<String>>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub(crate) struct OAuthTokenResponse {
+    pub(crate) access_token: String,
+    #[serde(default)]
+    pub(crate) refresh_token: Option<String>,
 }
 
 fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, label: &str) -> MutexGuard<'a, T> {
@@ -116,21 +129,91 @@ async fn exchange_code_for_token_impl(app: AppHandle, code: String) -> AnyResult
         return Err(anyhow::anyhow!("Token exchange failed: {}", error_text));
     }
 
-    let token_response: serde_json::Value = response.json().await.context("Failed to parse token response")?;
-    let access_token = token_response["access_token"]
-        .as_str()
-        .context("No access token in response")?
-        .to_string();
+    let token_response: OAuthTokenResponse = response
+        .json()
+        .await
+        .context("Failed to parse token response")?;
 
     // Verify and save the token
-    let user = verify_token(app.clone(), access_token.clone())
+    let user = verify_token(app.clone(), token_response.access_token.clone())
         .await
         .context("Token verification failed")?;
-    save_token(app, access_token)
+    save_token(app.clone(), token_response.access_token)
         .await
         .context("Saving token failed")?;
+    store_refresh_token(&app, token_response.refresh_token.as_deref())
+        .context("Saving refresh token failed")?;
 
     Ok(user)
+}
+
+pub(crate) fn store_refresh_token<R: Runtime>(
+    app: &AppHandle<R>,
+    refresh_token: Option<&str>,
+) -> AnyResult<()> {
+    match refresh_token {
+        Some(token) => app
+            .keyring()
+            .set_password(SERVICE_NAME, OAUTH_REFRESH_TOKEN_KEY, token)
+            .context("Failed to persist OAuth refresh token"),
+        None => delete_refresh_token(app),
+    }
+}
+
+pub(crate) fn is_keyring_entry_missing(error_message: &str) -> bool {
+    let lower = error_message.to_lowercase();
+    lower.contains("not found")
+        || lower.contains("no entry")
+        || lower.contains("does not exist")
+        || lower.contains("item could not be found")
+        || lower.contains("cannot find the item")
+}
+
+pub(crate) fn delete_refresh_token<R: Runtime>(app: &AppHandle<R>) -> AnyResult<()> {
+    match app
+        .keyring()
+        .delete_password(SERVICE_NAME, OAUTH_REFRESH_TOKEN_KEY)
+    {
+        Ok(_) => Ok(()),
+        Err(err) if is_keyring_entry_missing(&err.to_string()) => Ok(()),
+        Err(err) => Err(anyhow::anyhow!(
+            "Failed to delete OAuth refresh token: {}",
+            err
+        )),
+    }
+}
+
+pub(crate) async fn refresh_access_token(refresh_token: &str) -> AnyResult<OAuthTokenResponse> {
+    let client_id = env!("GITLAB_CLIENT_ID");
+    let token_url = format!("{}/oauth/token", GITLAB_HOST);
+
+    let params = [
+        ("client_id", client_id),
+        ("client_secret", ""), // Public client, no secret
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token),
+    ];
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&token_url)
+        .form(&params)
+        .send()
+        .await
+        .context("OAuth token refresh request failed")?;
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(anyhow::anyhow!("Token refresh failed: {}", error_text));
+    }
+
+    response
+        .json::<OAuthTokenResponse>()
+        .await
+        .context("Failed to parse refresh token response")
 }
 
 fn generate_verifier() -> String {

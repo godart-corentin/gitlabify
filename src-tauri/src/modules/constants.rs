@@ -3,6 +3,7 @@
 pub(crate) const GITLAB_HOST: &str = "https://gitlab.com";
 pub(crate) const SERVICE_NAME: &str = "gitlabify";
 pub(crate) const PAT_KEY: &str = "private-token";
+pub(crate) const OAUTH_REFRESH_TOKEN_KEY: &str = "oauth-refresh-token";
 pub(crate) const CONSECUTIVE_FAILURE_THRESHOLD: usize = 3;
 pub(crate) const POLLING_INTERVAL_SECONDS: u64 = 30;
 pub(crate) const PIPELINE_PAGE_SIZE: u32 = 1;

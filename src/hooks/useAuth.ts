@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MOCK_INBOX_DATA } from "../features/inbox/mockInboxData";
 import type { User } from "../lib/commands";
 import {
+  fetchInbox,
   getToken,
   saveToken,
   verifyToken,
@@ -10,10 +11,21 @@ import {
   startOauthFlow,
   exchangeCodeForToken,
 } from "../lib/commands";
+import { AuthErrorSchema } from "../schemas";
 
 const AUTH_USER_CACHE_TTL_MS = 1000 * 60 * 60;
 const MOCK_INBOX_ENV_FLAG = "true";
 const MOCK_TOKEN = "mock-token";
+
+const isInvalidTokenError = (error: unknown) => {
+  const parsed = AuthErrorSchema.tryJudge(error);
+  return parsed.type === "success" && parsed.data.type === "invalidToken";
+};
+
+const isInsufficientScopeError = (error: unknown) => {
+  const parsed = AuthErrorSchema.tryJudge(error);
+  return parsed.type === "success" && parsed.data.type === "insufficientScope";
+};
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -47,7 +59,7 @@ export function useAuth() {
   });
 
   // Query to get the current user profile (after authentication)
-  const { data: user, isLoading: isLoadingUser } = useQuery({
+  const { data: user, isLoading: isLoadingUser, error: authUserError } = useQuery({
     queryKey: ["auth-user"],
     queryFn: async () => {
       if (isMockMode) {
@@ -69,11 +81,29 @@ export function useAuth() {
           return u;
         } catch (e) {
           console.error("Frontend: verifyToken error:", e);
-          // If token is invalid/unauthorized, we should clear it
-          // We can't use the mutation here directly as it might cause a loop or react warning
-          // But throwing here will cause the query to be in error state
-          await deleteToken();
-          queryClient.setQueryData(["auth-token"], null);
+          if (isInvalidTokenError(e)) {
+            // Trigger backend refresh logic before concluding that the session is invalid.
+            try {
+              await fetchInbox();
+            } catch (refreshError) {
+              console.warn("Frontend: inbox refresh failed during auth recovery:", refreshError);
+            }
+
+            const latestToken = await getToken();
+            if (latestToken && latestToken !== token) {
+              queryClient.setQueryData(["auth-token"], latestToken);
+              const refreshedUser = await verifyToken(latestToken);
+              console.log("Frontend: recovered session with refreshed token");
+              return refreshedUser;
+            }
+
+            await deleteToken();
+            queryClient.setQueryData(["auth-token"], null);
+          }
+          if (isInsufficientScopeError(e)) {
+            await deleteToken();
+            queryClient.setQueryData(["auth-token"], null);
+          }
           throw e;
         }
       }
@@ -83,6 +113,8 @@ export function useAuth() {
     enabled: isMockMode ? !!mockUser : !!token,
     retry: false,
     staleTime: AUTH_USER_CACHE_TTL_MS,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // Mutation to verify and save token
@@ -127,7 +159,10 @@ export function useAuth() {
   });
 
   const authError =
-    verifyAndSaveMutation.error || exchangeCodeMutation.error || startOauthMutation.error;
+    verifyAndSaveMutation.error ||
+    exchangeCodeMutation.error ||
+    startOauthMutation.error ||
+    authUserError;
 
   return {
     user,

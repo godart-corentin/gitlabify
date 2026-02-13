@@ -195,7 +195,10 @@ impl GitLabClient {
                         .any(|entry| entry.user.id == user_id);
                 }
                 Err(GitLabError::Unauthorized) => {
-                    return Err(GitLabError::Unauthorized);
+                    eprintln!(
+                        "Approvals unauthorized for MR {} (project {}), skipping approvals",
+                        mr.iid, mr.project_id
+                    );
                 }
                 Err(e) => {
                     eprintln!(
@@ -246,7 +249,10 @@ impl GitLabClient {
                     todo.target = Some(mr);
                 }
                 Err(GitLabError::Unauthorized) => {
-                    return Err(GitLabError::Unauthorized);
+                    eprintln!(
+                        "Unauthorized while resolving todo target MR (iid {}), keeping todo without target",
+                        iid
+                    );
                 }
                 Err(e) => {
                     eprintln!("Failed to resolve todo target MR (iid {}): {}", iid, e);

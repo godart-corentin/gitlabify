@@ -14,6 +14,7 @@ export type Author = User;
 
 export const AuthErrorTypeSchema = union([
   lit("invalidToken"),
+  lit("insufficientScope"),
   lit("networkError"),
   lit("keychainError"),
 ]);

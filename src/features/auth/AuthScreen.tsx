@@ -83,7 +83,7 @@ export const AuthScreen = () => {
   const isPending = isVerifying || isStartingOauth || isExchanging;
   const patErrorMessage = getAuthErrorMessage({
     validationError: null,
-    authError: null,
+    authError,
     verifyError,
   });
   const oauthError =
