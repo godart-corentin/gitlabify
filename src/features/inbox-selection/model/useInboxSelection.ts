@@ -47,6 +47,27 @@ const isEditableTarget = (target: EventTarget | null) => {
   return tagName === "input" || tagName === "textarea" || tagName === "select";
 };
 
+const isInteractiveEnterTarget = (target: EventTarget | null) => {
+  if (!target || !(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (isEditableTarget(target)) {
+    return true;
+  }
+
+  if (target.closest("button, a, summary, [role='button'], [role='link']")) {
+    return true;
+  }
+
+  const focusableTarget = target.closest<HTMLElement>("[tabindex]:not([tabindex='-1'])");
+  if (!focusableTarget) {
+    return false;
+  }
+
+  return !focusableTarget.hasAttribute("data-item-id");
+};
+
 const getItemIdFromTarget = (target: EventTarget | null) => {
   if (!target || !(target instanceof HTMLElement)) {
     return null;
@@ -113,6 +134,7 @@ export const useInboxSelection = ({
     () => DEFAULT_HOVER_SUPPRESSED_BY_FILTER,
   );
   const selectionContextByFilterRef = useRef<SelectionContextByFilter>({});
+  const previousFilterRef = useRef<InboxFilter>(filter);
 
   const selectedItemId = selectedItemIdByFilter[filter];
   const hoveredItemId = hoveredItemIdByFilter[filter];
@@ -130,6 +152,28 @@ export const useInboxSelection = ({
       resolveActiveItemUrl,
     };
   };
+
+  useEffect(() => {
+    if (previousFilterRef.current === filter) {
+      return;
+    }
+
+    previousFilterRef.current = filter;
+    if (currentItemIds.length === 0) {
+      return;
+    }
+
+    setSelectedItemIdByFilter((previousState) => {
+      if (previousState[filter] !== NO_SELECTION_ID) {
+        return previousState;
+      }
+
+      return {
+        ...previousState,
+        [filter]: currentItemIds[FIRST_INDEX] ?? NO_SELECTION_ID,
+      };
+    });
+  }, [currentItemIds, filter]);
 
   useEffect(() => {
     if (selectedItemId === NO_SELECTION_ID || currentItemIds.includes(selectedItemId)) {
@@ -172,6 +216,10 @@ export const useInboxSelection = ({
       const itemIds = selectionContext?.itemIds ?? currentItemIds;
 
       if (event.key === ENTER_KEY) {
+        if (isInteractiveEnterTarget(event.target)) {
+          return;
+        }
+
         const activeItemUrl = selectionContext?.resolveActiveItemUrl(activeItemId) ?? null;
         if (!activeItemUrl) {
           return;
