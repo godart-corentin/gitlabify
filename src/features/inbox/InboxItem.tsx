@@ -100,13 +100,13 @@ export function InboxItem({
         </div>
         {subtitle ? (
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs font-mono text-base-content/50 truncate min-w-0 flex-1">
+            <span className="text-xs font-mono text-base-content/50 truncate min-w-0">
               {subtitle}
             </span>
             {branchName ? (
               <button
                 type="button"
-                className="inline-flex items-center justify-center h-5 w-5 rounded text-base-content/40 hover:text-base-content/70 hover:bg-base-200/60 transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center h-5 w-5 rounded text-base-content/40 hover:text-base-content/70 hover:bg-base-200/60 transition-colors cursor-pointer shrink-0"
                 aria-label="Copy branch name"
                 title="Copy branch name"
                 onClick={handleCopyBranch}
