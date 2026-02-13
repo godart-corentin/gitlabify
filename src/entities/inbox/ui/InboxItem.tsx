@@ -80,12 +80,11 @@ export function InboxItem({
   return (
     <div
       onClick={handleClick}
-      aria-selected={isSelected}
+      aria-selected={isSelected || isHovered}
       data-item-id={dataItemId}
       className={clsx(
-        "w-full flex items-center gap-4 px-4 py-3 border-b border-base-300 hover:bg-base-200/50 transition-colors cursor-pointer border-l-2 border-transparent",
-        isSelected && "bg-primary/10 border-l-primary",
-        isHovered && "bg-base-200/60",
+        "w-full flex items-center gap-4 px-4 py-3 border-b border-base-300 transition-colors cursor-pointer border-l-2 border-transparent",
+        (isSelected || isHovered) && "bg-primary/10 border-l-primary",
         className,
       )}
     >
