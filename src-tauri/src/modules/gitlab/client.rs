@@ -251,6 +251,11 @@ impl GitLabClient {
         self.get_json::<MergeRequestApprovals>(&url).await
     }
 
+    pub(crate) async fn mark_todo_as_done(&self, todo_id: u64) -> Result<(), GitLabError> {
+        let url = format!("{}/api/v4/todos/{todo_id}/mark_as_done", self.host);
+        self.post_empty(&url).await
+    }
+
     async fn get_json<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T, GitLabError> {
         let mut attempt: usize = 0;
 
@@ -264,6 +269,55 @@ impl GitLabClient {
 
                     if status.is_success() {
                         return response.json::<T>().await.map_err(GitLabError::Network);
+                    }
+
+                    if status == StatusCode::UNAUTHORIZED {
+                        return Err(GitLabError::Unauthorized);
+                    }
+
+                    if status == StatusCode::TOO_MANY_REQUESTS {
+                        return Err(GitLabError::RateLimited);
+                    }
+
+                    if status.is_server_error() && attempt < GITLAB_API_MAX_RETRIES {
+                        sleep_backoff(attempt).await;
+                        continue;
+                    }
+
+                    let body = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Could not read response body".to_string());
+                    return Err(GitLabError::Api(format!("Status: {status} - Body: {body}")));
+                }
+                Err(error) => {
+                    if attempt < GITLAB_API_MAX_RETRIES {
+                        sleep_backoff(attempt).await;
+                        continue;
+                    }
+                    return Err(GitLabError::Network(error));
+                }
+            }
+        }
+
+        Err(GitLabError::Api(
+            "GitLab request exhausted retries without response".to_string(),
+        ))
+    }
+
+    async fn post_empty(&self, url: &str) -> Result<(), GitLabError> {
+        let mut attempt: usize = 0;
+
+        while attempt < GITLAB_API_MAX_RETRIES {
+            attempt += 1;
+            let request = self.client.post(url).bearer_auth(&self.token);
+
+            match request.send().await {
+                Ok(response) => {
+                    let status = response.status();
+
+                    if status.is_success() {
+                        return Ok(());
                     }
 
                     if status == StatusCode::UNAUTHORIZED {
@@ -471,6 +525,52 @@ mod tests {
 
         assert!(matches!(result, Err(GitLabError::Unauthorized)));
         assert_eq!(request_count.load(Ordering::Relaxed), 1);
+        let _ = server_handle.await;
+    }
+
+    #[tokio::test]
+    async fn mark_todo_as_done_uses_post_endpoint() {
+        let listener = match TcpListener::bind("127.0.0.1:0").await {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => return,
+            Err(error) => panic!("mock server setup should succeed: {error}"),
+        };
+
+        let local_addr = match listener.local_addr() {
+            Ok(addr) => addr,
+            Err(error) => panic!("mock listener local addr should resolve: {error}"),
+        };
+
+        let server_handle = tokio::spawn(async move {
+            let (mut socket, _) = listener
+                .accept()
+                .await
+                .expect("mock server should accept connection in test");
+
+            let mut request_buffer = [0_u8; 4096];
+            let read_size = socket
+                .read(&mut request_buffer)
+                .await
+                .expect("mock server should read request in test");
+            let request = String::from_utf8_lossy(&request_buffer[..read_size]);
+
+            assert!(
+                request.starts_with("POST /api/v4/todos/42/mark_as_done HTTP/1.1"),
+                "expected POST request to mark_as_done endpoint, got: {request}"
+            );
+
+            let payload = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}";
+            let _ = socket.write_all(payload.as_bytes()).await;
+            let _ = socket.shutdown().await;
+        });
+
+        let client = match GitLabClient::new(format!("http://{local_addr}"), "token".to_string()) {
+            Ok(client) => client,
+            Err(error) => panic!("gitlab client should initialize for mark_as_done test: {error}"),
+        };
+
+        let result = client.mark_todo_as_done(42).await;
+        assert!(result.is_ok());
         let _ = server_handle.await;
     }
 }

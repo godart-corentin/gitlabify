@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{atomic::Ordering, Arc};
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_keyring::KeyringExt;
@@ -8,6 +8,7 @@ use tracing::{debug, error, info, warn};
 use crate::modules::constants::{GITLAB_HOST, OAUTH_REFRESH_TOKEN_KEY, PAT_KEY, SERVICE_NAME};
 use crate::modules::gitlab::{GitLabClient, GitLabError, InboxData};
 use crate::modules::oauth::{delete_refresh_token, refresh_access_token, store_refresh_token};
+use crate::modules::utils::lock_or_recover;
 
 use super::cache::{get_cached_inbox_data, now_ms, persist_cache_failure, persist_cache_success};
 use super::error::InboxServiceError;
@@ -250,6 +251,76 @@ pub(crate) async fn fetch_inbox_once<R: Runtime>(
 
         return cached_data;
     }
+}
+
+pub(crate) async fn mark_as_done<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    todo_id: u64,
+) -> Result<(), InboxServiceError> {
+    let token = match app_handle.keyring().get_password(SERVICE_NAME, PAT_KEY) {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            return Err(InboxServiceError::Fetch(
+                "missing token for mark_as_done".to_string(),
+            ));
+        }
+        Err(error) => return Err(InboxServiceError::Keyring(error.to_string())),
+    };
+
+    let client = Arc::new(
+        GitLabClient::new(GITLAB_HOST.to_string(), token)
+            .map_err(|error| InboxServiceError::ClientInit(error.to_string()))?,
+    );
+
+    let state = app_handle.state::<InboxState>();
+    let (updated_data, updated_count, last_updated_at_ms, is_offline) = {
+        let mut data_guard = lock_or_recover(&state.data, "InboxState data");
+        let inbox_data = data_guard
+            .as_mut()
+            .ok_or_else(|| InboxServiceError::Fetch("inbox data is unavailable".to_string()))?;
+
+        let original_len = inbox_data.todos.len();
+        inbox_data.todos.retain(|todo| todo.id != todo_id);
+        let removed_count = original_len.saturating_sub(inbox_data.todos.len());
+        if removed_count == 0 {
+            return Err(InboxServiceError::Fetch(format!("todo {todo_id} not found")));
+        }
+
+        let current_count = state.unread_count.load(Ordering::Relaxed);
+        let next_count = current_count.saturating_sub(removed_count);
+        (inbox_data.clone(), next_count, now_ms(), state.is_offline())
+    };
+
+    update_count(app_handle, updated_count);
+    state.set_last_updated_at_ms(Some(last_updated_at_ms));
+    state.clear_error();
+
+    let _ = app_handle.emit("inbox-updated", &updated_data);
+    emit_inbox_stale(
+        app_handle,
+        InboxStalePayload {
+            is_stale: false,
+            is_offline,
+            last_updated_at_ms: Some(last_updated_at_ms),
+            last_error: None,
+        },
+    );
+    persist_cache_success(app_handle, &updated_data, updated_count, last_updated_at_ms);
+
+    let app_handle_for_task = app_handle.clone();
+    let client_for_task = Arc::clone(&client);
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = client_for_task.mark_todo_as_done(todo_id).await {
+            let message = format!("Failed to mark todo {todo_id} as done on GitLab: {error}");
+            warn!(target: "gitlabify::inbox", %message);
+            app_handle_for_task
+                .state::<InboxState>()
+                .set_error(message.clone());
+            let _ = app_handle_for_task.emit("inbox-error", message);
+        }
+    });
+
+    Ok(())
 }
 
 fn resolve_token<R: Runtime>(

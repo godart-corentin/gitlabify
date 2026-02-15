@@ -9,6 +9,7 @@ import {
   type SelectedItemId,
 } from "../../../entities/inbox/model";
 import { InboxItem } from "../../../entities/inbox/ui";
+import { markTodoAsDone } from "../../../shared/api/tauri/inboxActions";
 import { useScrollToSelectedItem } from "../../../shared/hooks/useScrollToSelectedItem";
 import type { IconType } from "../../../shared/ui/status-icon/StatusIcon";
 
@@ -35,6 +36,10 @@ export const InboxItemList = ({
 }: InboxItemListProps) => {
   const listRef = useRef<HTMLDivElement | null>(null);
   useScrollToSelectedItem(listRef.current, selectedItemId);
+
+  const handleMarkAsDone = (todoId: number) => {
+    void markTodoAsDone(todoId);
+  };
 
   const inboxItemNodes = items.map((item) => {
     const { mr, todo } = item;
@@ -83,6 +88,10 @@ export const InboxItemList = ({
     const updatedAt = displayData ? item.date.toISOString() : todo!.createdAt;
     const isSelected = !hasHover && selectedItemId === item.id;
     const isHovered = hoveredItemId === item.id;
+    const todoId = todo?.id;
+    const canMarkAsDone = filter === "notifications" && typeof todoId === "number";
+    const handleTodoDone =
+      canMarkAsDone && todoId !== undefined ? () => handleMarkAsDone(todoId) : undefined;
 
     return (
       <InboxItem
@@ -98,6 +107,7 @@ export const InboxItemList = ({
         isSelected={isSelected}
         dataItemId={item.id}
         isHovered={isHovered}
+        onMarkAsDone={handleTodoDone}
       />
     );
   });

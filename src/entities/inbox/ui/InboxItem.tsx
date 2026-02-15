@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { clsx } from "clsx";
-import { Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { formatShortRelativeTime } from "../../../shared/lib/date/formatShortRelativeTime";
@@ -31,6 +31,7 @@ type InboxItemProps = {
   isSelected?: boolean;
   dataItemId?: string;
   isHovered?: boolean;
+  onMarkAsDone?: () => void | Promise<void>;
 };
 
 export function InboxItem({
@@ -49,6 +50,7 @@ export function InboxItem({
   isSelected = false,
   dataItemId,
   isHovered = false,
+  onMarkAsDone,
 }: InboxItemProps) {
   const timeAgo = formatShortRelativeTime(updatedAt);
 
@@ -75,6 +77,15 @@ export function InboxItem({
     } catch {
       // Ignore clipboard errors to avoid blocking navigation.
     }
+  };
+
+  const handleMarkAsDone = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!onMarkAsDone) {
+      return;
+    }
+    void Promise.resolve(onMarkAsDone());
   };
 
   return (
@@ -118,6 +129,17 @@ export function InboxItem({
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
+        {onMarkAsDone ? (
+          <button
+            type="button"
+            className="inline-flex items-center justify-center h-6 w-6 rounded text-success/80 hover:text-success hover:bg-success/15 transition-colors cursor-pointer"
+            aria-label="Mark as done"
+            title="Mark as done"
+            onClick={handleMarkAsDone}
+          >
+            <Check className="h-4 w-4" />
+          </button>
+        ) : null}
         <span className="text-xs font-mono text-base-content/40 whitespace-nowrap">{timeAgo}</span>
         <Avatar src={author.avatarUrl} alt={author.name} size="sm" />
       </div>

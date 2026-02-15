@@ -22,6 +22,10 @@ vi.mock("../../../shared/hooks/useTauriEventListener", () => ({
   useTauriEventListener: vi.fn(),
 }));
 
+vi.mock("../../../shared/hooks/useScrollToSelectedItem", () => ({
+  useScrollToSelectedItem: vi.fn(),
+}));
+
 const DASHBOARD_DATA_FIXTURE: InboxData = {
   mergeRequests: [],
   todos: [],
