@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupedItem } from "../../../entities/inbox/model";
@@ -65,7 +65,9 @@ describe("InboxItemList", () => {
     expect(screen.queryByRole("button", { name: "Mark as done" })).not.toBeNull();
   });
 
-  it("does not open external URL when mark-as-done action is clicked", () => {
+  it("does not open external URL when mark-as-done action is clicked", async () => {
+    markTodoAsDoneMock.mockResolvedValue(undefined);
+
     render(
       <InboxItemList
         items={[createItem()]}
@@ -81,7 +83,94 @@ describe("InboxItemList", () => {
     const button = screen.getByRole("button", { name: "Mark as done" });
     fireEvent.click(button);
 
+    await waitFor(() => {
+      expect(markTodoAsDoneMock).toHaveBeenCalledWith(901);
+    });
+
     expect(openUrlMock).not.toHaveBeenCalled();
-    expect(markTodoAsDoneMock).toHaveBeenCalledWith(901);
+  });
+
+  it("hides the row when mark-as-done succeeds", async () => {
+    markTodoAsDoneMock.mockResolvedValue(undefined);
+
+    render(
+      <InboxItemList
+        items={[createItem()]}
+        filter="notifications"
+        selectedItemId="-1"
+        hoveredItemId="-1"
+        hasHover={false}
+        onListMouseMove={vi.fn()}
+        onListMouseLeave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark as done" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Please check this")).toBeNull();
+    });
+  });
+
+  it("keeps the row visible when mark-as-done fails", async () => {
+    markTodoAsDoneMock.mockRejectedValue(new Error("mark as done failed"));
+
+    render(
+      <InboxItemList
+        items={[createItem()]}
+        filter="notifications"
+        selectedItemId="-1"
+        hoveredItemId="-1"
+        hasHover={false}
+        onListMouseMove={vi.fn()}
+        onListMouseLeave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark as done" }));
+
+    await waitFor(() => {
+      expect(markTodoAsDoneMock).toHaveBeenCalledWith(901);
+    });
+
+    expect(screen.queryByText("Please check this")).not.toBeNull();
+  });
+
+  it("shows a dismissed row again when refetched data includes the todo", async () => {
+    markTodoAsDoneMock.mockResolvedValue(undefined);
+
+    const { rerender } = render(
+      <InboxItemList
+        items={[createItem()]}
+        filter="notifications"
+        selectedItemId="-1"
+        hoveredItemId="-1"
+        hasHover={false}
+        onListMouseMove={vi.fn()}
+        onListMouseLeave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark as done" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Please check this")).toBeNull();
+    });
+
+    rerender(
+      <InboxItemList
+        items={[createItem()]}
+        filter="notifications"
+        selectedItemId="-1"
+        hoveredItemId="-1"
+        hasHover={false}
+        onListMouseMove={vi.fn()}
+        onListMouseLeave={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText("Please check this")).not.toBeNull();
+    });
   });
 });

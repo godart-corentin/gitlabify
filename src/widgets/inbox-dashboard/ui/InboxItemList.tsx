@@ -1,5 +1,4 @@
-import type { MouseEvent } from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 import {
   type GroupedItem,
@@ -35,13 +34,59 @@ export const InboxItemList = ({
   onListMouseLeave,
 }: InboxItemListProps) => {
   const listRef = useRef<HTMLDivElement | null>(null);
+  const [dismissedItemIds, setDismissedItemIds] = useState<Set<string>>(() => new Set());
+  const [markingItemIds, setMarkingItemIds] = useState<Set<string>>(() => new Set());
   useScrollToSelectedItem(listRef.current, selectedItemId);
 
-  const handleMarkAsDone = (todoId: number) => {
-    void markTodoAsDone(todoId);
+  useEffect(() => {
+    setDismissedItemIds((current) => {
+      if (current.size === 0) {
+        return current;
+      }
+
+      const itemIdsWithTodo = new Set(items.filter((item) => item.todo).map((item) => item.id));
+      const next = new Set([...current].filter((itemId) => !itemIdsWithTodo.has(itemId)));
+
+      return next.size === current.size ? current : next;
+    });
+  }, [items]);
+
+  const handleMarkAsDone = async (itemId: string, todoId: number) => {
+    setMarkingItemIds((current) => {
+      if (current.has(itemId)) {
+        return current;
+      }
+
+      return new Set([...current, itemId]);
+    });
+
+    try {
+      await markTodoAsDone(todoId);
+      setDismissedItemIds((current) => {
+        if (current.has(itemId)) {
+          return current;
+        }
+
+        return new Set([...current, itemId]);
+      });
+    } catch {
+      // Keep item visible when marking as done fails.
+    } finally {
+      setMarkingItemIds((current) => {
+        if (!current.has(itemId)) {
+          return current;
+        }
+
+        return new Set([...current].filter((currentItemId) => currentItemId !== itemId));
+      });
+    }
   };
 
   const inboxItemNodes = items.map((item) => {
+    if (dismissedItemIds.has(item.id)) {
+      return null;
+    }
+
     const { mr, todo } = item;
     const normalizedAction = getNormalizedAction(todo?.actionName);
     const isMention =
@@ -90,8 +135,14 @@ export const InboxItemList = ({
     const isHovered = hoveredItemId === item.id;
     const todoId = todo?.id;
     const canMarkAsDone = filter === "notifications" && typeof todoId === "number";
-    const handleTodoDone =
-      canMarkAsDone && todoId !== undefined ? () => handleMarkAsDone(todoId) : undefined;
+    const isMarkingAsDone = markingItemIds.has(item.id);
+    const handleTodoDone = () => {
+      if (!canMarkAsDone || todoId === undefined || isMarkingAsDone) {
+        return;
+      }
+
+      void handleMarkAsDone(item.id, todoId);
+    };
 
     return (
       <InboxItem
@@ -107,7 +158,7 @@ export const InboxItemList = ({
         isSelected={isSelected}
         dataItemId={item.id}
         isHovered={isHovered}
-        onMarkAsDone={handleTodoDone}
+        onMarkAsDone={canMarkAsDone ? handleTodoDone : undefined}
       />
     );
   });
