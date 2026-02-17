@@ -96,7 +96,8 @@ export const getGroupedItems = (
       normalizedAction === TODO_ACTION.DIRECTLY_ADDRESSED;
 
     if (filter === "notifications") {
-      const needsReview = !!mr && mr.isReviewer && !mr.approvedByMe && !isAuthor && !isDraft;
+      const needsReview =
+        !!mr && mr.isReviewer && !mr.approvedByMe && !mr.reviewedByMe && !isAuthor && !isDraft;
       const commentsOnMyMr = !!todo && isCommentTodo && isTargetMrMine && !isTodoAuthor;
       const repliesToMyComments = !!todo && isCommentTodo && isTargetMrNotMine && !isTodoAuthor;
       const mentions = !!todo && isMentionTodo && !isTodoAuthor;

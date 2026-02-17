@@ -35,6 +35,8 @@ pub(crate) struct MergeRequest {
     pub(crate) is_reviewer: bool,
     #[serde(default)]
     pub(crate) approved_by_me: bool,
+    #[serde(default)]
+    pub(crate) reviewed_by_me: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -91,4 +93,17 @@ pub(crate) struct ApprovalEntry {
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub(crate) struct MergeRequestApprovals {
     pub(crate) approved_by: Vec<ApprovalEntry>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub(crate) struct MergeRequestReviewerUser {
+    pub(crate) id: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub(crate) struct MergeRequestReviewerStatus {
+    pub(crate) user: MergeRequestReviewerUser,
+    pub(crate) state: String,
 }

@@ -9,10 +9,14 @@ use crate::modules::constants::{
 };
 
 use super::error::GitLabError;
-use super::models::{Author, MergeRequest, MergeRequestApprovals, Pipeline, Todo};
+use super::models::{
+    Author, MergeRequest, MergeRequestApprovals, MergeRequestReviewerStatus, Pipeline, Todo,
+};
 use super::parse::{
     extract_merge_request_iid, is_comment_or_mention_action, resolve_project_ref, ProjectRef,
 };
+
+const REVIEWED_REVIEWER_STATE: &str = "reviewed";
 
 pub(crate) struct GitLabClient {
     client: Client,
@@ -68,6 +72,7 @@ impl GitLabClient {
         let mut reviewer_mrs = reviewer_res?;
         for mr in &mut reviewer_mrs {
             mr.is_reviewer = true;
+            mr.reviewed_by_me = false;
         }
 
         let mut all_mrs = reviewer_mrs;
@@ -92,10 +97,12 @@ impl GitLabClient {
                 continue;
             }
 
-            match self
-                .fetch_merge_request_approvals(mr.project_id, mr.iid)
-                .await
-            {
+            let (approvals_result, reviewers_result) = tokio::join!(
+                self.fetch_merge_request_approvals(mr.project_id, mr.iid),
+                self.fetch_merge_request_reviewers(mr.project_id, mr.iid)
+            );
+
+            match approvals_result {
                 Ok(approvals) => {
                     mr.approved_by_me = approvals
                         .approved_by
@@ -117,6 +124,29 @@ impl GitLabClient {
                         iid = mr.iid,
                         %error,
                         "approvals fetch error; skipping"
+                    );
+                }
+            }
+
+            match reviewers_result {
+                Ok(reviewers) => {
+                    mr.reviewed_by_me = did_user_review_mr(&reviewers, user_id);
+                }
+                Err(GitLabError::Unauthorized) => {
+                    warn!(
+                        target: "gitlabify::gitlab",
+                        project_id = mr.project_id,
+                        iid = mr.iid,
+                        "reviewers unauthorized; skipping"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        target: "gitlabify::gitlab",
+                        project_id = mr.project_id,
+                        iid = mr.iid,
+                        %error,
+                        "reviewers fetch error; skipping"
                     );
                 }
             }
@@ -251,6 +281,18 @@ impl GitLabClient {
         self.get_json::<MergeRequestApprovals>(&url).await
     }
 
+    pub(crate) async fn fetch_merge_request_reviewers(
+        &self,
+        project_id: u64,
+        merge_request_iid: u64,
+    ) -> Result<Vec<MergeRequestReviewerStatus>, GitLabError> {
+        let url = format!(
+            "{}/api/v4/projects/{}/merge_requests/{}/reviewers",
+            self.host, project_id, merge_request_iid
+        );
+        self.get_json::<Vec<MergeRequestReviewerStatus>>(&url).await
+    }
+
     pub(crate) async fn mark_todo_as_done(&self, todo_id: u64) -> Result<(), GitLabError> {
         let url = format!("{}/api/v4/todos/{todo_id}/mark_as_done", self.host);
         self.post_empty(&url).await
@@ -355,6 +397,12 @@ impl GitLabClient {
     }
 }
 
+fn did_user_review_mr(reviewers: &[MergeRequestReviewerStatus], user_id: u64) -> bool {
+    reviewers.iter().any(|reviewer| {
+        reviewer.user.id == user_id && reviewer.state.eq_ignore_ascii_case(REVIEWED_REVIEWER_STATE)
+    })
+}
+
 async fn sleep_backoff(attempt: usize) {
     let backoff_ms = GITLAB_API_RETRY_BASE_DELAY_MS.saturating_mul(attempt as u64);
     tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
@@ -371,9 +419,9 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
-    use super::{GitLabClient, GitLabError};
+    use super::{did_user_review_mr, GitLabClient, GitLabError};
     use crate::modules::constants::GITLAB_HOST;
-    use crate::modules::gitlab::models::{MergeRequest, Todo};
+    use crate::modules::gitlab::models::{MergeRequest, MergeRequestReviewerStatus, Todo};
 
     struct MockHttpResponse {
         status_line: &'static str,
@@ -444,6 +492,27 @@ mod tests {
             serde_json::from_str(&json).expect("merge request json should deserialize in test");
         assert_eq!(mr.title, "Test MR");
         assert_eq!(mr.author.username, "testuser");
+        assert!(!mr.reviewed_by_me);
+    }
+
+    #[test]
+    fn resolves_reviewer_state_from_gitlab_reviewers_field() {
+        let json = r#"[
+            {
+                "user": { "id": 100 },
+                "state": "reviewed"
+            },
+            {
+                "user": { "id": 101 },
+                "state": "unreviewed"
+            }
+        ]"#;
+
+        let reviewers: Vec<MergeRequestReviewerStatus> =
+            serde_json::from_str(json).expect("reviewers json should deserialize in test");
+        assert!(did_user_review_mr(&reviewers, 100));
+        assert!(!did_user_review_mr(&reviewers, 101));
+        assert!(!did_user_review_mr(&reviewers, 102));
     }
 
     #[test]

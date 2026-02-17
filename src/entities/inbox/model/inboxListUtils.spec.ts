@@ -26,6 +26,7 @@ const createMergeRequest = (overrides: Partial<MergeRequest>): MergeRequest => (
   workInProgress: false,
   isReviewer: false,
   approvedByMe: false,
+  reviewedByMe: false,
   ...overrides,
 });
 
@@ -65,6 +66,7 @@ describe("getGroupedItems", () => {
       updatedAt: "2026-02-10T11:00:00.000Z",
       isReviewer: true,
       approvedByMe: false,
+      reviewedByMe: false,
       draft: false,
     });
 
@@ -128,5 +130,104 @@ describe("getGroupedItems", () => {
     const result = getGroupedItems(data, "mrs", "me");
 
     expect(result.map((item) => item.id)).toEqual(["mr-11", "mr-10"]);
+  });
+
+  it("excludes reviewer merge requests already reviewed by current user", () => {
+    const reviewedMr = createMergeRequest({
+      id: 20,
+      iid: 220,
+      author: { id: 50, username: "teammate", name: "Teammate", avatarUrl: null },
+      isReviewer: true,
+      approvedByMe: false,
+      reviewedByMe: true,
+      draft: false,
+    });
+
+    const data: InboxData = {
+      mergeRequests: [reviewedMr],
+      todos: [],
+      pipelines: [],
+    };
+
+    const result = getGroupedItems(data, "notifications", "me");
+    expect(result).toEqual([]);
+  });
+
+  it("keeps reviewer merge requests actionable when reviewer state is not reviewed", () => {
+    const pendingReviewMr = createMergeRequest({
+      id: 21,
+      iid: 221,
+      author: { id: 50, username: "teammate", name: "Teammate", avatarUrl: null },
+      isReviewer: true,
+      approvedByMe: false,
+      reviewedByMe: false,
+      draft: false,
+    });
+
+    const data: InboxData = {
+      mergeRequests: [pendingReviewMr],
+      todos: [],
+      pipelines: [],
+    };
+
+    const result = getGroupedItems(data, "notifications", "me");
+    expect(result.map((item) => item.id)).toEqual(["mr-21"]);
+  });
+
+  it("keeps external comments visible even when merge request is already reviewed", () => {
+    const reviewedMr = createMergeRequest({
+      id: 22,
+      iid: 222,
+      author: { id: 50, username: "teammate", name: "Teammate", avatarUrl: null },
+      isReviewer: true,
+      approvedByMe: false,
+      reviewedByMe: true,
+      draft: false,
+    });
+    const externalComment = createTodo({
+      id: 702,
+      actionName: "commented",
+      author: { id: 77, username: "reviewer2", name: "Reviewer Two", avatarUrl: null },
+      target: reviewedMr,
+      createdAt: "2026-02-10T15:00:00.000Z",
+    });
+
+    const data: InboxData = {
+      mergeRequests: [reviewedMr],
+      todos: [externalComment],
+      pipelines: [],
+    };
+
+    const result = getGroupedItems(data, "notifications", "me");
+    expect(result.map((item) => item.id)).toEqual(["mr-22"]);
+    expect(result[0]?.todo?.id).toBe(702);
+  });
+
+  it("allows merge requests to reappear when reviewer state changes back to unreviewed", () => {
+    const baseMr = createMergeRequest({
+      id: 23,
+      iid: 223,
+      author: { id: 50, username: "teammate", name: "Teammate", avatarUrl: null },
+      isReviewer: true,
+      approvedByMe: false,
+      draft: false,
+    });
+
+    const reviewedData: InboxData = {
+      mergeRequests: [{ ...baseMr, reviewedByMe: true }],
+      todos: [],
+      pipelines: [],
+    };
+    const unreviewedData: InboxData = {
+      mergeRequests: [{ ...baseMr, reviewedByMe: false }],
+      todos: [],
+      pipelines: [],
+    };
+
+    const reviewedItems = getGroupedItems(reviewedData, "notifications", "me");
+    const unreviewedItems = getGroupedItems(unreviewedData, "notifications", "me");
+
+    expect(reviewedItems).toEqual([]);
+    expect(unreviewedItems.map((item) => item.id)).toEqual(["mr-23"]);
   });
 });

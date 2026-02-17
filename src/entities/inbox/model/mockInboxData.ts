@@ -45,6 +45,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 502,
@@ -81,6 +82,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 503,
@@ -117,6 +119,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 504,
@@ -142,6 +145,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 505,
@@ -167,6 +171,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 506,
@@ -192,6 +197,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 507,
@@ -217,6 +223,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 508,
@@ -242,6 +249,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 509,
@@ -267,6 +275,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 510,
@@ -292,6 +301,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 511,
@@ -317,6 +327,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
     {
       id: 512,
@@ -342,6 +353,7 @@ export const MOCK_INBOX_DATA: InboxData = {
       workInProgress: false,
       isReviewer: false,
       approvedByMe: false,
+      reviewedByMe: false,
     },
   ],
   todos: [
