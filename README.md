@@ -7,7 +7,7 @@
 - **System Tray Integration:** Quick access to your GitLab notifications directly from your menu bar or taskbar.
 - **Pipeline Failure Alerts:** High-urgency notifications for CI/CD pipeline failures so you can fix builds immediately.
 - **Premium Design:** A clean, information-dense, and highly readable UI utilizing a "Premium Utility" design system with Tailwind CSS and DaisyUI.
-- **Cross-Platform:** Built with Tauri, providing a lightweight desktop experience on macOS, Windows, and Linux.
+- **Desktop Platforms:** Built with Tauri, providing a lightweight desktop experience on macOS and Windows.
 - **Thick Backend Architecture:** Core business logic, secure storage, and API polling are handled robustly in Rust, keeping the React frontend fast and responsive.
 
 ## 🛠️ Technical Stack
