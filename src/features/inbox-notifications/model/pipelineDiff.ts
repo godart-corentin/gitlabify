@@ -36,7 +36,7 @@ export const getFinishedPipelines = (
 export const getPipelineNotificationConfig = (pipelines: Pipeline[]): NotificationConfig => {
   if (pipelines.length === 1) {
     const pipeline = pipelines[0];
-    const pipelineId = pipeline.iid ?? pipeline.id;
+    const pipelineId = pipeline.id;
     const status = normalizeStatus(pipeline.status);
     const isSuccess = status === "success";
 
@@ -44,6 +44,7 @@ export const getPipelineNotificationConfig = (pipelines: Pipeline[]): Notificati
       title: isSuccess ? "Pipeline passed" : `Pipeline finished: ${pipeline.status}`,
       body: `#${pipelineId} on ${pipeline.ref}${isSuccess ? " finished successfully" : ""}`,
       importance: HIGH_URGENCY_STATUSES.has(status) ? "High" : undefined,
+      url: pipeline.webUrl,
     };
   }
 

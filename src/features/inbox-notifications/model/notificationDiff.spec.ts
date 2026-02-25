@@ -326,6 +326,7 @@ describe("notification diff", () => {
     expect(config.title).toBe("Pipeline passed");
     expect(config.body).toBe("#1 on main finished successfully");
     expect(config.importance).toBeUndefined();
+    expect(config.url).toBe("https://gitlab.com/pipelines/1");
   });
 
   it("formats config for a single failed pipeline", () => {
@@ -335,6 +336,7 @@ describe("notification diff", () => {
     expect(config.title).toBe("Pipeline finished: failed");
     expect(config.body).toBe("#2 on main");
     expect(config.importance).toBe("High");
+    expect(config.url).toBe("https://gitlab.com/pipelines/2");
   });
 
   it("formats config for a single canceled pipeline (standard urgency)", () => {
@@ -344,6 +346,7 @@ describe("notification diff", () => {
     expect(config.title).toBe("Pipeline finished: canceled");
     expect(config.body).toBe("#3 on main");
     expect(config.importance).toBeUndefined();
+    expect(config.url).toBe("https://gitlab.com/pipelines/3");
   });
 
   it("formats config for multiple finished pipelines with failure", () => {

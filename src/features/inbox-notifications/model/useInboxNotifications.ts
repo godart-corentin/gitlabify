@@ -40,24 +40,24 @@ export const useInboxNotifications = (
       try {
         const listener = await onAction(async (notification) => {
           const window = getCurrentWebviewWindow();
-          await window.show();
-          await window.unminimize();
-          await window.setFocus();
+          await Promise.all([window.show(), window.unminimize(), window.setFocus()]);
 
           // If the extra data contains a URL, open it in the browser
           const url = notification.extra?.url;
-          if (typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))) {
+          if (typeof url === "string" && url.startsWith("https://")) {
             await openUrl(url);
           }
         });
 
         if (!isMounted) {
-          void listener.unregister();
+          listener.unregister().catch(() => {});
           return;
         }
 
         unregister = () => {
-          void listener.unregister();
+          listener.unregister().catch((err) => {
+            console.warn("Failed to unregister notification action listener", err);
+          });
         };
       } catch (error) {
         console.warn("Failed to register notification action listener", error);
@@ -99,7 +99,11 @@ export const useInboxNotifications = (
     const newNotifications = getNewNotifications(notificationItems, previousNotificationIds);
     const finishedPipelines = getFinishedPipelines(previousPipelineStatusMap, inboxData.pipelines);
 
+    let soundPlayedThisCycle = false;
     const playNotificationSound = () => {
+      if (soundPlayedThisCycle) return;
+      soundPlayedThisCycle = true;
+
       if (!audioRef.current) {
         audioRef.current = new Audio(NOTIFICATION_SOUND_SRC);
       }
@@ -111,12 +115,15 @@ export const useInboxNotifications = (
 
       audio.currentTime = AUDIO_START_TIME_SEC;
       isPlayingRef.current = true;
-      audio.play().then(() => {
-        isPlayingRef.current = false;
-      }).catch((error) => {
-        isPlayingRef.current = false;
-        console.warn("Unable to play notification sound", error);
-      });
+      audio
+        .play()
+        .then(() => {
+          isPlayingRef.current = false;
+        })
+        .catch((error) => {
+          isPlayingRef.current = false;
+          console.warn("Unable to play notification sound", error);
+        });
     };
 
     const maybeNotify = async (
@@ -159,14 +166,12 @@ export const useInboxNotifications = (
 
     if (finishedPipelines.length > 0) {
       const pipelineNotification = getPipelineNotificationConfig(finishedPipelines);
-      const firstPipeline = finishedPipelines[0];
-      const url = finishedPipelines.length === 1 ? firstPipeline.webUrl : undefined;
 
       void maybeNotify(
         pipelineNotification.title,
         pipelineNotification.body,
         pipelineNotification.importance,
-        url,
+        pipelineNotification.url,
       );
     }
 

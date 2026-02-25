@@ -102,6 +102,7 @@ export const showDesktopNotification = async ({
         body,
         channelId,
         icon,
+        autoCancel: true,
         extra: url ? { url } : undefined,
       };
       await sendNotification(options);
