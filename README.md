@@ -24,6 +24,7 @@
 ### Prerequisites
 
 Ensure you have the following installed on your system:
+
 - [Bun](https://bun.sh/)
 - [Rust](https://www.rust-lang.org/tools/install)
 - [Tauri Dependencies](https://v2.tauri.app/start/prerequisites/)
