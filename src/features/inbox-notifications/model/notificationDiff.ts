@@ -3,6 +3,7 @@ import { getGroupedItems, type GroupedItem, type InboxData } from "../../../enti
 export type NotificationConfig = {
   title: string;
   body?: string;
+  importance?: "High" | "Default";
 };
 
 export const getNotificationItemIds = (
