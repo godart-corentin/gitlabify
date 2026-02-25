@@ -29,6 +29,8 @@ jobs:
   backend:
     name: Backend Quality Checks
     runs-on: ubuntu-latest
+    env:
+      GITLAB_CLIENT_ID: ${{ vars.GITLAB_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
