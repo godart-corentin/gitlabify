@@ -2,12 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import type { GroupedItem, Pipeline } from "../../../entities/inbox/model";
 
-import { getNewNotifications } from "./notificationDiff";
+import {
+  getNewNotifications,
+  getNotificationTitle,
+  getNotificationBody,
+  isUrgentNotification,
+} from "./notificationDiff";
 import {
   getFinishedPipelines,
   getPipelineStatusMap,
   getPipelineNotificationConfig,
 } from "./pipelineDiff";
+
+const createAuthor = (name: string) => ({
+  id: 1,
+  username: "user1",
+  name,
+  avatarUrl: "https://avatar.com/1",
+});
 
 const createGroupedItem = (id: string): GroupedItem => ({
   id,
@@ -28,6 +40,263 @@ const createPipeline = (id: number, status: string): Pipeline => ({
 });
 
 describe("notification diff", () => {
+  describe("getNotificationTitle", () => {
+    it("returns correct title for single generic notification", () => {
+      expect(getNotificationTitle(1, createGroupedItem("1"))).toBe("New notification");
+    });
+
+    it("returns correct title for single mention notification", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        todo: {
+          id: 1,
+          projectId: 1,
+          author: createAuthor("John Doe"),
+          actionName: "mentioned",
+          targetType: "MergeRequest",
+          targetUrl: "url",
+          target: null,
+          body: "Hello",
+          state: "pending",
+          createdAt: "2026-02-10T10:00:00.000Z",
+        },
+      };
+      expect(getNotificationTitle(1, item)).toBe("Mention from John Doe");
+    });
+
+    it("returns correct title for single assignment notification", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        todo: {
+          id: 1,
+          projectId: 1,
+          author: createAuthor("John Doe"),
+          actionName: "assigned",
+          targetType: "MergeRequest",
+          targetUrl: "url",
+          target: null,
+          body: null,
+          state: "pending",
+          createdAt: "2026-02-10T10:00:00.000Z",
+        },
+      };
+      expect(getNotificationTitle(1, item)).toBe("Assigned by John Doe");
+    });
+
+    it("returns correct title for single MR-only notification", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        mr: {
+          id: 1,
+          iid: 1,
+          projectId: 1,
+          sourceBranch: "branch",
+          title: "MR Title",
+          description: "desc",
+          state: "opened",
+          createdAt: "2026-02-10T10:00:00.000Z",
+          updatedAt: "2026-02-10T10:00:00.000Z",
+          webUrl: "url",
+          author: createAuthor("Jane Doe"),
+          hasConflicts: false,
+          blockingDiscussionsResolved: true,
+          headPipeline: null,
+          draft: false,
+          workInProgress: false,
+          isReviewer: true,
+          approvedByMe: false,
+          reviewedByMe: false,
+        },
+      };
+      expect(getNotificationTitle(1, item)).toBe("Review request from Jane Doe");
+    });
+
+    it("returns correct title for single comment notification", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        todo: {
+          id: 1,
+          projectId: 1,
+          author: createAuthor("John Doe"),
+          actionName: "commented",
+          targetType: "MergeRequest",
+          targetUrl: "url",
+          target: null,
+          body: "Nice work!",
+          state: "pending",
+          createdAt: "2026-02-10T10:00:00.000Z",
+        },
+      };
+      expect(getNotificationTitle(1, item)).toBe("Comment from John Doe");
+    });
+
+    it("returns correct title for multiple notifications", () => {
+      expect(getNotificationTitle(3)).toBe("3 new notifications");
+    });
+  });
+
+  describe("getNotificationBody", () => {
+    it("combines mr title and todo body if both available", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        mr: {
+          id: 1,
+          iid: 1,
+          projectId: 1,
+          sourceBranch: "branch",
+          title: "MR Title",
+          description: "desc",
+          state: "opened",
+          createdAt: "2026-02-10T10:00:00.000Z",
+          updatedAt: "2026-02-10T10:00:00.000Z",
+          webUrl: "url",
+          author: createAuthor("Jane Doe"),
+          hasConflicts: false,
+          blockingDiscussionsResolved: true,
+          headPipeline: null,
+          draft: false,
+          workInProgress: false,
+          isReviewer: true,
+          approvedByMe: false,
+          reviewedByMe: false,
+        },
+        todo: {
+          id: 1,
+          projectId: 1,
+          author: createAuthor("John Doe"),
+          actionName: "mentioned",
+          targetType: "MergeRequest",
+          targetUrl: "url",
+          target: null,
+          body: "Hello world",
+          state: "pending",
+          createdAt: "2026-02-10T10:00:00.000Z",
+        },
+      };
+      expect(getNotificationBody(item)).toBe("MR Title: Hello world");
+    });
+
+    it("uses mr title if todo body is not available", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        mr: {
+          id: 1,
+          iid: 1,
+          projectId: 1,
+          sourceBranch: "branch",
+          title: "MR Title",
+          description: "desc",
+          state: "opened",
+          createdAt: "2026-02-10T10:00:00.000Z",
+          updatedAt: "2026-02-10T10:00:00.000Z",
+          webUrl: "url",
+          author: createAuthor("Jane Doe"),
+          hasConflicts: false,
+          blockingDiscussionsResolved: true,
+          headPipeline: null,
+          draft: false,
+          workInProgress: false,
+          isReviewer: true,
+          approvedByMe: false,
+          reviewedByMe: false,
+        },
+      };
+      expect(getNotificationBody(item)).toBe("MR Title");
+    });
+
+    it("returns default body if neither todo body nor mr title is available", () => {
+      const item = createGroupedItem("1");
+      expect(getNotificationBody(item)).toBe("Open Gitlabify to view details.");
+    });
+  });
+
+  describe("isUrgentNotification", () => {
+    it("returns true for mentions", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        todo: {
+          id: 1,
+          projectId: 1,
+          author: createAuthor("John"),
+          actionName: "mentioned",
+          targetType: "MR",
+          targetUrl: "url",
+          target: null,
+          body: "Hello",
+          state: "pending",
+          createdAt: "2026",
+        },
+      };
+      expect(isUrgentNotification(item)).toBe(true);
+    });
+
+    it("returns true for assignments", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        todo: {
+          id: 1,
+          projectId: 1,
+          author: createAuthor("John"),
+          actionName: "assigned",
+          targetType: "MR",
+          targetUrl: "url",
+          target: null,
+          body: "Hello",
+          state: "pending",
+          createdAt: "2026",
+        },
+      };
+      expect(isUrgentNotification(item)).toBe(true);
+    });
+
+    it("returns true for MR-only notifications", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        mr: {
+          id: 1,
+          iid: 1,
+          projectId: 1,
+          sourceBranch: "branch",
+          title: "MR Title",
+          description: "desc",
+          state: "opened",
+          createdAt: "2026",
+          updatedAt: "2026",
+          webUrl: "url",
+          author: createAuthor("Jane Doe"),
+          hasConflicts: false,
+          blockingDiscussionsResolved: true,
+          headPipeline: null,
+          draft: false,
+          workInProgress: false,
+          isReviewer: true,
+          approvedByMe: false,
+          reviewedByMe: false,
+        },
+      };
+      expect(isUrgentNotification(item)).toBe(true);
+    });
+
+    it("returns false for generic notifications", () => {
+      const item: GroupedItem = {
+        ...createGroupedItem("1"),
+        todo: {
+          id: 1,
+          projectId: 1,
+          author: createAuthor("John"),
+          actionName: "something_else",
+          targetType: "MR",
+          targetUrl: "url",
+          target: null,
+          body: "Hello",
+          state: "pending",
+          createdAt: "2026",
+        },
+      };
+      expect(isUrgentNotification(item)).toBe(false);
+    });
+  });
+
   it("detects only unseen notifications", () => {
     const notifications = [createGroupedItem("a"), createGroupedItem("b")];
     const previousIds = new Set(["a"]);

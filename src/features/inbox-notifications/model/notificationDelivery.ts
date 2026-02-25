@@ -6,7 +6,13 @@ import {
   Importance,
 } from "@tauri-apps/plugin-notification";
 
-import type { NotificationConfig } from "./notificationDiff";
+export type NotificationConfig = {
+  title: string;
+  body?: string;
+  importance?: "High" | "Default";
+  url?: string;
+  icon?: string;
+};
 
 const WINDOW_TAURI_GLOBAL = "__TAURI_INTERNALS__";
 
@@ -81,11 +87,23 @@ export const ensureNotificationPermission = async () => {
   return permission === "granted";
 };
 
-export const showDesktopNotification = async ({ title, body, importance }: NotificationConfig) => {
+export const showDesktopNotification = async ({
+  title,
+  body,
+  importance,
+  url,
+  icon,
+}: NotificationConfig) => {
   if (isTauriRuntime()) {
     try {
       const channelId = importance === "High" ? "high-urgency" : "default";
-      const options = body ? { title, body, channelId } : { title, channelId };
+      const options = {
+        title,
+        body,
+        channelId,
+        icon,
+        extra: url ? { url } : undefined,
+      };
       await sendNotification(options);
       return;
     } catch (error) {
@@ -99,9 +117,16 @@ export const showDesktopNotification = async ({ title, body, importance }: Notif
     return;
   }
 
-  const notification = new Notification(title, body ? { body } : undefined);
+  const notification = new Notification(title, {
+    body,
+    icon,
+  });
   notification.addEventListener("click", () => {
-    window.focus();
+    if (url) {
+      window.open(url, "_blank");
+    } else {
+      window.focus();
+    }
     notification.close();
   });
 };
