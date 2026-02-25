@@ -283,7 +283,9 @@ pub(crate) async fn mark_as_done<R: Runtime>(
         inbox_data.todos.retain(|todo| todo.id != todo_id);
         let removed_count = original_len.saturating_sub(inbox_data.todos.len());
         if removed_count == 0 {
-            return Err(InboxServiceError::Fetch(format!("todo {todo_id} not found")));
+            return Err(InboxServiceError::Fetch(format!(
+                "todo {todo_id} not found"
+            )));
         }
 
         let current_count = state.unread_count.load(Ordering::Relaxed);

@@ -101,8 +101,7 @@ fn get_work_area_bottom() -> Option<i32> {
     const SPI_GETWORKAREA: u32 = 0x0030;
 
     let mut rect: Rect = unsafe { mem::zeroed() };
-    let success =
-        unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut rect as *mut _ as _, 0) };
+    let success = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut rect as *mut _ as _, 0) };
 
     if success != 0 {
         Some(rect.bottom)
