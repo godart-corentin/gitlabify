@@ -22,11 +22,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install
-        working-directory: ./gitlabify
 
       - name: Run validate (Lint, Format, Typecheck, Test)
         run: bun run validate
-        working-directory: ./gitlabify
 
   backend:
     name: Backend Quality Checks
@@ -41,12 +39,12 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt -- --check
-        working-directory: ./gitlabify/src-tauri
+        working-directory: ./src-tauri
 
       - name: Run Clippy (Linting)
         run: cargo clippy -- -D warnings
-        working-directory: ./gitlabify/src-tauri
+        working-directory: ./src-tauri
 
       - name: Run tests
         run: cargo test
-        working-directory: ./gitlabify/src-tauri
+        working-directory: ./src-tauri
