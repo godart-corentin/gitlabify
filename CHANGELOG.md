@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-02-25
 
 ### Added
+
 - Initial public release of Gitlabify.
 - System tray integration for quick access to GitLab notifications.
 - High-urgency alerts for CI/CD pipeline failures.

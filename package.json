@@ -10,6 +10,7 @@
     "format:fix": "oxfmt --write",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "prepare": "husky",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
@@ -46,7 +47,9 @@
     "@vitest/ui": "^4.0.18",
     "autoprefixer": "^10.4.24",
     "daisyui": "^5.5.14",
+    "husky": "^9.1.7",
     "jsdom": "^27.4.0",
+    "lint-staged": "^16.2.7",
     "oxfmt": "^0.28.0",
     "oxlint": "^1.43.0",
     "postcss": "^8.5.6",
@@ -54,5 +57,12 @@
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "vitest": "^4.0.18"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "oxlint --fix",
+      "oxfmt --write"
+    ],
+    "*.{json,md,css,scss,html,yml,yaml}": "oxfmt --write"
   }
 }
