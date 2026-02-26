@@ -29,7 +29,7 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2.5.8"
-reqwest = { version = "0.13.1", features = ["json", "form"] }
+reqwest = { version = "0.13.2", features = ["json", "form"] }
 urlencoding = "2.1.3"
 dotenvy = "0.15"
 base64 = "0.22"
