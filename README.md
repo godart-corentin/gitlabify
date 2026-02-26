@@ -53,3 +53,10 @@ bun run test
 - **React Clean Code:** Strictly adheres to Feature-Sliced Design (FSD) architecture. State logic and side-effects are properly encapsulated and separated from the UI components.
 - **Styling & UI:** UI is completely based on a bespoke Design System minimizing decoration in favor of utility, with strict grayscale base colors and status-driven semantic accents.
 - **Rust/Tauri:** Prioritizes a "Thick Backend" architecture. Core business logic, including GitLab API interactions, data transformation, polling, and secure storage management, reside in the Rust backend.
+
+## 🤝 Contributing & Community
+
+- See `CONTRIBUTING.md` for contribution workflow and quality gates.
+- See `CODE_OF_CONDUCT.md` for community participation guidelines.
+- See `SECURITY.md` to report vulnerabilities privately.
+- License: `LICENSE` (MIT).

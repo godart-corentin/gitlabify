@@ -25,3 +25,8 @@ coverage
 *.sw?
 
 .env
+.env.*
+!.env.example
+/src-tauri/.env
+/src-tauri/.env.*
+!/src-tauri/.env.example
