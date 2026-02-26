@@ -32,7 +32,7 @@ jobs:
       GITLAB_CLIENT_ID: ${{ vars.GITLAB_CLIENT_ID }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node/Bun
         uses: oven-sh/setup-bun@v2
