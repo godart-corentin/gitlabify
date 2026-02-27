@@ -14,18 +14,6 @@ const ARROW_DOWN_KEY = "ArrowDown";
 const ARROW_UP_KEY = "ArrowUp";
 const ENTER_KEY = "Enter";
 
-const DEFAULT_SELECTION_BY_FILTER: Record<InboxFilter, SelectedItemId> = {
-  notifications: NO_SELECTION_ID,
-  mrs: NO_SELECTION_ID,
-  pipelines: NO_SELECTION_ID,
-};
-
-const DEFAULT_HOVER_SUPPRESSED_BY_FILTER: Record<InboxFilter, boolean> = {
-  notifications: false,
-  mrs: false,
-  pipelines: false,
-};
-
 type ActiveItemUrlResolver = (activeItemId: SelectedItemId) => string | null;
 
 type FilterSelectionContext = {
@@ -124,22 +112,12 @@ export const useInboxSelection = ({
   filter: InboxFilter;
   currentItemIds: string[];
 }) => {
-  const [selectedItemIdByFilter, setSelectedItemIdByFilter] = useState(
-    () => DEFAULT_SELECTION_BY_FILTER,
-  );
-  const [hoveredItemIdByFilter, setHoveredItemIdByFilter] = useState(
-    () => DEFAULT_SELECTION_BY_FILTER,
-  );
-  const [isHoverSuppressedByFilter, setIsHoverSuppressedByFilter] = useState(
-    () => DEFAULT_HOVER_SUPPRESSED_BY_FILTER,
-  );
+  const [selectedItemId, setSelectedItemId] = useState<SelectedItemId>(NO_SELECTION_ID);
+  const [hoveredItemId, setHoveredItemId] = useState<SelectedItemId>(NO_SELECTION_ID);
+  const [isHoverSuppressed, setIsHoverSuppressed] = useState(false);
   const selectionContextByFilterRef = useRef<SelectionContextByFilter>({});
-  const previousFilterRef = useRef<InboxFilter>(filter);
 
-  const selectedItemId = selectedItemIdByFilter[filter];
-  const hoveredItemId = hoveredItemIdByFilter[filter];
   const hasHover = hoveredItemId !== NO_SELECTION_ID;
-  const isHoverSuppressed = isHoverSuppressedByFilter[filter];
   const activeItemId = hasHover ? hoveredItemId : selectedItemId;
 
   const setFilterSelectionContext = (
@@ -154,54 +132,26 @@ export const useInboxSelection = ({
   };
 
   useEffect(() => {
-    if (previousFilterRef.current === filter) {
-      return;
-    }
-
-    previousFilterRef.current = filter;
-    if (currentItemIds.length === 0) {
-      return;
-    }
-
-    setSelectedItemIdByFilter((previousState) => {
-      if (previousState[filter] !== NO_SELECTION_ID) {
-        return previousState;
-      }
-
-      return {
-        ...previousState,
-        [filter]: currentItemIds[FIRST_INDEX] ?? NO_SELECTION_ID,
-      };
-    });
-  }, [currentItemIds, filter]);
+    setSelectedItemId(NO_SELECTION_ID);
+    setHoveredItemId(NO_SELECTION_ID);
+    setIsHoverSuppressed(false);
+  }, [filter]);
 
   useEffect(() => {
     if (selectedItemId === NO_SELECTION_ID || currentItemIds.includes(selectedItemId)) {
       return;
     }
 
-    setSelectedItemIdByFilter((previousState) => {
-      if (previousState[filter] === NO_SELECTION_ID) {
-        return previousState;
-      }
-
-      return { ...previousState, [filter]: NO_SELECTION_ID };
-    });
-  }, [currentItemIds, filter, selectedItemId]);
+    setSelectedItemId(NO_SELECTION_ID);
+  }, [currentItemIds, selectedItemId]);
 
   useEffect(() => {
     if (hoveredItemId === NO_SELECTION_ID || currentItemIds.includes(hoveredItemId)) {
       return;
     }
 
-    setHoveredItemIdByFilter((previousState) => {
-      if (previousState[filter] === NO_SELECTION_ID) {
-        return previousState;
-      }
-
-      return { ...previousState, [filter]: NO_SELECTION_ID };
-    });
-  }, [currentItemIds, filter, hoveredItemId]);
+    setHoveredItemId(NO_SELECTION_ID);
+  }, [currentItemIds, hoveredItemId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -237,17 +187,11 @@ export const useInboxSelection = ({
       event.preventDefault();
 
       if (hoveredItemId !== NO_SELECTION_ID) {
-        setHoveredItemIdByFilter((previousState) => ({
-          ...previousState,
-          [filter]: NO_SELECTION_ID,
-        }));
+        setHoveredItemId(NO_SELECTION_ID);
       }
 
       if (!isHoverSuppressed) {
-        setIsHoverSuppressedByFilter((previousState) => ({
-          ...previousState,
-          [filter]: true,
-        }));
+        setIsHoverSuppressed(true);
       }
 
       const nextSelectionId = getNextSelectionId({
@@ -260,10 +204,7 @@ export const useInboxSelection = ({
         return;
       }
 
-      setSelectedItemIdByFilter((previousState) => ({
-        ...previousState,
-        [filter]: nextSelectionId,
-      }));
+      setSelectedItemId(nextSelectionId);
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -274,37 +215,25 @@ export const useInboxSelection = ({
 
   const onListMouseMove = (event: MouseEvent<HTMLDivElement>) => {
     if (isHoverSuppressed) {
-      setIsHoverSuppressedByFilter((previousState) => ({
-        ...previousState,
-        [filter]: false,
-      }));
+      setIsHoverSuppressed(false);
     }
 
     const itemId = getItemIdFromTarget(event.target);
     if (!itemId) {
       if (hoveredItemId !== NO_SELECTION_ID) {
-        setHoveredItemIdByFilter((previousState) => ({
-          ...previousState,
-          [filter]: NO_SELECTION_ID,
-        }));
+        setHoveredItemId(NO_SELECTION_ID);
       }
       return;
     }
 
     if (hoveredItemId !== itemId) {
-      setHoveredItemIdByFilter((previousState) => ({
-        ...previousState,
-        [filter]: itemId,
-      }));
+      setHoveredItemId(itemId);
     }
   };
 
   const onListMouseLeave = () => {
     if (hoveredItemId !== NO_SELECTION_ID) {
-      setHoveredItemIdByFilter((previousState) => ({
-        ...previousState,
-        [filter]: NO_SELECTION_ID,
-      }));
+      setHoveredItemId(NO_SELECTION_ID);
     }
   };
 
