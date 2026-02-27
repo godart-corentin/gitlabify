@@ -75,7 +75,7 @@ describe("useInboxSelection", () => {
     button.remove();
   });
 
-  it("selects the first item when switching to another tab with no prior selection", () => {
+  it("resets selection when switching to another tab even if a selection existed", () => {
     type HookProps = {
       filter: InboxFilter;
       currentItemIds: string[];
@@ -95,8 +95,13 @@ describe("useInboxSelection", () => {
       },
     );
 
-    expect(result.current.selectedItemId).toBe(NO_SELECTION_ID);
+    // Select "a" in notifications
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    });
+    expect(result.current.selectedItemId).toBe("a");
 
+    // Switch to mrs
     act(() => {
       rerender({
         filter: "mrs",
@@ -104,7 +109,17 @@ describe("useInboxSelection", () => {
       });
     });
 
-    expect(result.current.selectedItemId).toBe("c");
+    expect(result.current.selectedItemId).toBe(NO_SELECTION_ID);
+
+    // Switch back to notifications
+    act(() => {
+      rerender({
+        filter: "notifications",
+        currentItemIds: ["a", "b"],
+      });
+    });
+
+    expect(result.current.selectedItemId).toBe(NO_SELECTION_ID);
   });
 
   it("suppresses hover on keyboard navigation and restores hover after mouse move", () => {
