@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-02-28
+
+### Added
+
+- Full in-app update lifecycle: check for updates, download/install, prompt for restart, and resilient user-facing update status handling.
+
+### Changed
+
+- Reworked app settings UI to support updater-related controls and messaging.
+- CI workflow now also runs for pushes to the `develop` branch.
+
 ## [1.0.2] - 2026-02-27
 
 ### Fixed
