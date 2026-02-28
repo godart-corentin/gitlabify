@@ -35,6 +35,8 @@ pub fn run() {
             handle_single_instance(app, &args);
         }))
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(OAuthState {
             code_verifier: Mutex::new(None),
         })
