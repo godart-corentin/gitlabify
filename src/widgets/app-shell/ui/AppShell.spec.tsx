@@ -13,14 +13,12 @@ const USER_FIXTURE = {
 } as const;
 
 describe("AppShell", () => {
-  const onThemeChange = vi.fn();
   const onLogout = vi.fn();
   const installUpdate = vi.fn(async () => undefined);
   const restartToApplyUpdate = vi.fn(async () => undefined);
   const remindLater = vi.fn(async () => undefined);
 
   beforeEach(() => {
-    onThemeChange.mockReset();
     onLogout.mockReset();
     installUpdate.mockReset();
     restartToApplyUpdate.mockReset();
@@ -41,32 +39,21 @@ describe("AppShell", () => {
     ...overrides,
   });
 
-  const openSettingsMenu = () => {
-    fireEvent.click(screen.getByLabelText("Theme settings"));
-  };
-
-  it("shows Update unavailable in settings when updater is idle", () => {
+  it("hides the update button when updater is idle", () => {
     const updater = createUpdaterFixture();
 
     render(
-      <AppShell
-        user={USER_FIXTURE}
-        theme="light"
-        onThemeChange={onThemeChange}
-        onLogout={onLogout}
-        updater={updater}
-      >
+      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
         <div>content</div>
       </AppShell>,
     );
 
-    openSettingsMenu();
-
-    const unavailableButton = screen.getByRole("menuitem", { name: "Update unavailable" });
-    expect((unavailableButton as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /update to/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /installing update/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /restart to apply update/i })).toBeNull();
   });
 
-  it("shows available update banner and triggers install from settings", () => {
+  it("shows warning update button when update is available and triggers install on click", () => {
     const updater = createUpdaterFixture({
       status: "available",
       availableVersion: "1.2.3",
@@ -74,77 +61,21 @@ describe("AppShell", () => {
     });
 
     render(
-      <AppShell
-        user={USER_FIXTURE}
-        theme="light"
-        onThemeChange={onThemeChange}
-        onLogout={onLogout}
-        updater={updater}
-      >
+      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
         <div>content</div>
       </AppShell>,
     );
 
     expect(screen.queryByText("Update v1.2.3 is available")).not.toBeNull();
-    expect(screen.queryByLabelText("Update available")).not.toBeNull();
 
-    openSettingsMenu();
+    const updateButton = screen.getByRole("button", { name: "Update to v1.2.3" });
+    expect((updateButton as HTMLButtonElement).disabled).toBe(false);
 
-    const updateButton = screen.getByRole("menuitem", { name: "Update to v1.2.3" });
     fireEvent.click(updateButton);
-
     expect(installUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it("hides available banner on later without disabling settings update action", () => {
-    const updater = createUpdaterFixture({
-      status: "available",
-      availableVersion: "1.2.3",
-      releaseNotes: "Important update",
-    });
-
-    const { rerender } = render(
-      <AppShell
-        user={USER_FIXTURE}
-        theme="light"
-        onThemeChange={onThemeChange}
-        onLogout={onLogout}
-        updater={updater}
-      >
-        <div>content</div>
-      </AppShell>,
-    );
-
-    const laterButton = screen.getByRole("button", { name: "Later" });
-    fireEvent.click(laterButton);
-
-    expect(remindLater).toHaveBeenCalledTimes(1);
-
-    const hiddenBannerUpdater = {
-      ...updater,
-      isBannerVisible: false,
-    };
-
-    rerender(
-      <AppShell
-        user={USER_FIXTURE}
-        theme="light"
-        onThemeChange={onThemeChange}
-        onLogout={onLogout}
-        updater={hiddenBannerUpdater}
-      >
-        <div>content</div>
-      </AppShell>,
-    );
-
-    expect(screen.queryByText("Update v1.2.3 is available")).toBeNull();
-
-    openSettingsMenu();
-    const updateButton = screen.getByRole("menuitem", { name: "Update to v1.2.3" });
-    expect((updateButton as HTMLButtonElement).disabled).toBe(false);
-  });
-
-  it("shows disabled updating state in settings while update is downloading", () => {
+  it("shows disabled info update button while update is downloading", () => {
     const updater = createUpdaterFixture({
       status: "downloading",
       availableVersion: "1.2.3",
@@ -152,51 +83,62 @@ describe("AppShell", () => {
     });
 
     render(
-      <AppShell
-        user={USER_FIXTURE}
-        theme="light"
-        onThemeChange={onThemeChange}
-        onLogout={onLogout}
-        updater={updater}
-      >
+      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
         <div>content</div>
       </AppShell>,
     );
 
     expect(screen.queryByText("Updating to v1.2.3")).not.toBeNull();
 
-    openSettingsMenu();
-
-    const updatingButton = screen.getByRole("menuitem", { name: "Updating... 52%" });
-
-    expect((updatingButton as HTMLButtonElement).disabled).toBe(true);
+    const downloadingButton = screen.getByRole("button", { name: "Installing update…" });
+    expect((downloadingButton as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("triggers restart action when update is ready to restart", () => {
+  it("shows success restart button when update is ready and triggers restart on click", () => {
     const updater = createUpdaterFixture({
       status: "ready_to_restart",
       availableVersion: "1.2.3",
     });
 
     render(
-      <AppShell
-        user={USER_FIXTURE}
-        theme="light"
-        onThemeChange={onThemeChange}
-        onLogout={onLogout}
-        updater={updater}
-      >
+      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
         <div>content</div>
       </AppShell>,
     );
 
     expect(screen.queryByText("Update installed")).not.toBeNull();
 
-    openSettingsMenu();
-
-    const restartButton = screen.getByRole("menuitem", { name: "Restart to apply update" });
+    const restartButton = screen.getByRole("button", { name: "Restart to apply update" });
     fireEvent.click(restartButton);
 
     expect(restartToApplyUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides banner on remind later but keeps update button visible in header", () => {
+    const updater = createUpdaterFixture({
+      status: "available",
+      availableVersion: "1.2.3",
+      releaseNotes: "Important update",
+    });
+
+    const { rerender } = render(
+      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
+        <div>content</div>
+      </AppShell>,
+    );
+
+    const laterButton = screen.getByRole("button", { name: "Later" });
+    fireEvent.click(laterButton);
+    expect(remindLater).toHaveBeenCalledTimes(1);
+
+    const hiddenBannerUpdater = { ...updater, isBannerVisible: false };
+    rerender(
+      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={hiddenBannerUpdater}>
+        <div>content</div>
+      </AppShell>,
+    );
+
+    expect(screen.queryByText("Update v1.2.3 is available")).toBeNull();
+    expect(screen.getByRole("button", { name: "Update to v1.2.3" })).not.toBeNull();
   });
 });

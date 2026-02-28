@@ -9,7 +9,7 @@ import { AppShell } from "./widgets/app-shell/ui/AppShell";
 export const App = () => {
   const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuthSession();
   const updater = useAppUpdater();
-  const { theme, setTheme } = useTheme();
+  useTheme();
   const { data: isOffline } = useConnectionStatus();
 
   useLogoutOnAuthRequired(logout);
@@ -27,14 +27,7 @@ export const App = () => {
   }
 
   return (
-    <AppShell
-      user={user}
-      isOffline={isOffline}
-      theme={theme}
-      onThemeChange={setTheme}
-      onLogout={logout}
-      updater={updater}
-    >
+    <AppShell user={user} isOffline={isOffline} onLogout={logout} updater={updater}>
       <InboxPage currentUsername={user.username} />
     </AppShell>
   );
