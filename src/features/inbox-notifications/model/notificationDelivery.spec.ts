@@ -39,4 +39,25 @@ describe("notificationDelivery", () => {
       }),
     );
   });
+
+  it("merges custom extra payload with url in Tauri runtime", async () => {
+    vi.stubGlobal("__TAURI_INTERNALS__", {});
+
+    await showDesktopNotification({
+      title: "Update available",
+      body: "Click to open app",
+      url: "https://gitlab.com",
+      extra: { kind: "app-update", version: "1.2.3" },
+    });
+
+    expect(sendNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extra: {
+          kind: "app-update",
+          version: "1.2.3",
+          url: "https://gitlab.com",
+        },
+      }),
+    );
+  });
 });

@@ -1,3 +1,4 @@
+import { useAppUpdater } from "./features/app-updater/model";
 import { useAuthSession, useLogoutOnAuthRequired } from "./features/auth-session/model";
 import { useConnectionStatus } from "./features/connection-status/model/useConnectionStatus";
 import { useTheme } from "./features/theme-switcher/model/useTheme";
@@ -7,6 +8,7 @@ import { AppShell } from "./widgets/app-shell/ui/AppShell";
 
 export const App = () => {
   const { isAuthenticated, isLoadingToken, isLoadingUser, user, logout } = useAuthSession();
+  const updater = useAppUpdater();
   const { theme, setTheme } = useTheme();
   const { data: isOffline } = useConnectionStatus();
 
@@ -31,6 +33,7 @@ export const App = () => {
       theme={theme}
       onThemeChange={setTheme}
       onLogout={logout}
+      updater={updater}
     >
       <InboxPage currentUsername={user.username} />
     </AppShell>

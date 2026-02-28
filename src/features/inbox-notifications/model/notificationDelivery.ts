@@ -12,6 +12,7 @@ export type NotificationConfig = {
   importance?: "High" | "Default";
   url?: string;
   icon?: string;
+  extra?: Record<string, unknown>;
 };
 
 const WINDOW_TAURI_GLOBAL = "__TAURI_INTERNALS__";
@@ -93,17 +94,19 @@ export const showDesktopNotification = async ({
   importance,
   url,
   icon,
+  extra,
 }: NotificationConfig) => {
   if (isTauriRuntime()) {
     try {
       const channelId = importance === "High" ? "high-urgency" : "default";
+      const notificationExtra = url ? (extra ? { ...extra, url } : { url }) : extra;
       const options = {
         title,
         body,
         channelId,
         icon,
         autoCancel: true,
-        extra: url ? { url } : undefined,
+        extra: notificationExtra,
       };
       await sendNotification(options);
       return;
