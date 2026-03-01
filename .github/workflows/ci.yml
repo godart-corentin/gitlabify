@@ -44,10 +44,10 @@ jobs:
               - "vitest.config.*"
               - "tailwind.config.*"
               - "postcss.config.*"
-              - ".github/workflows/**"
+              - ".github/workflows/ci.yml"
             backend:
               - "src-tauri/**"
-              - ".github/workflows/**"
+              - ".github/workflows/ci.yml"
 
   frontend:
     name: Frontend Quality Checks
