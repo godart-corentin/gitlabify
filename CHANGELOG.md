@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-01
+
+### Added
+
+- Pin/float toggle for persistent window positioning: pinned mode preserves tray-popup behaviour (hides on blur, snaps to tray icon); floating mode keeps the window always-on-top and draggable, remembering its last position between shows.
+- "Reset to tray position" button in the floating window header to snap back without changing mode.
+- Sentry error monitoring for both the React frontend and the Rust backend.
+
 ## [1.1.2] - 2026-03-01
 
 ### Fixed

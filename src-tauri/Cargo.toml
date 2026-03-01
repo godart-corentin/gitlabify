@@ -1,6 +1,6 @@
 [package]
 name = "gitlabify"
-version = "1.1.2"
+version = "1.2.0"
 description = "GitLab Desktop Notification Center"
 authors = ["Corentin"]
 edition = "2021"
