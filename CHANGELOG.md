@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-03-01
+
+### Fixed
+
+- macOS: clear WKWebView browsing data on version change to prevent stale UI after upgrade.
+- macOS: release artifacts now include version in updater filename (`gitlabify_1.1.2_universal.app.tar.gz`).
+- macOS: generate missing `.sig` file for DMG installer.
+
 ## [1.1.1] - 2026-03-01
 
 ### Changed
