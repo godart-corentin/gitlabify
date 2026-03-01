@@ -14,6 +14,9 @@ use modules::inbox::{
 };
 use modules::oauth::{exchange_code_for_token, start_oauth_flow, OAuthState};
 use modules::window_controls::toggle_window;
+use modules::window_pin::{
+    apply_pin_state, get_pinned, load_pin_state, set_pinned, snap_to_tray, WindowPinState,
+};
 
 const DEFAULT_SHORTCUT: &str = "CmdOrCtrl+Shift+G";
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -42,6 +45,7 @@ pub fn run() {
             code_verifier: Mutex::new(None),
         })
         .manage(InboxState::new())
+        .manage(WindowPinState::new(true))
         .setup(setup_application)
         .invoke_handler(tauri::generate_handler![
             verify_token,
@@ -54,7 +58,10 @@ pub fn run() {
             get_connection_status,
             refresh_inbox,
             fetch_inbox,
-            mark_as_done
+            mark_as_done,
+            get_pinned,
+            set_pinned,
+            snap_to_tray
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|run_error| {
@@ -77,6 +84,11 @@ fn setup_application<R: Runtime>(app: &mut App<R>) -> Result<(), Box<dyn std::er
     #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+    let initial_pinned = load_pin_state(app.handle());
+    if let Err(e) = apply_pin_state(app.handle(), initial_pinned) {
+        warn!(target: "gitlabify::bootstrap", %e, "failed to restore window pin state");
+    }
+
     setup_window_auto_hide(app);
     register_deep_link_handlers(app);
     clear_stale_webview_on_upgrade(app);
@@ -93,8 +105,15 @@ fn setup_window_auto_hide<R: Runtime>(app: &App<R>) {
     if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         let window_clone = main_window.clone();
         main_window.on_window_event(move |event| {
-            if let tauri::WindowEvent::Focused(focused) = event {
-                if !focused {
+            if let tauri::WindowEvent::Focused(false) = event {
+                // Tray-popup mode (pinned) hides on blur.
+                // Floating mode (unpinned) stays visible.
+                let is_pinned = window_clone
+                    .app_handle()
+                    .try_state::<WindowPinState>()
+                    .map(|s| s.get())
+                    .unwrap_or(true);
+                if is_pinned {
                     let _ = window_clone.hide();
                 }
             }

@@ -87,3 +87,25 @@ export async function getConnectionStatus(): Promise<boolean> {
 export async function refreshInbox(): Promise<void> {
   await invoke("refresh_inbox");
 }
+
+/**
+ * Gets the current window pin state.
+ */
+export async function getPinned(): Promise<boolean> {
+  const data = await invoke("get_pinned");
+  return bool().judge(data);
+}
+
+/**
+ * Sets the window pin state (always-on-top + persists).
+ */
+export async function setPinned(pinned: boolean): Promise<void> {
+  await invoke("set_pinned", { pinned });
+}
+
+/**
+ * Moves the window back to the tray-icon position without changing the pin state.
+ */
+export async function snapToTray(): Promise<void> {
+  await invoke("snap_to_tray");
+}

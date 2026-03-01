@@ -2,6 +2,8 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_positioner::{Position, WindowExt};
 use tracing::warn;
 
+use crate::modules::window_pin::WindowPinState;
+
 pub(crate) fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let is_visible = window.is_visible().unwrap_or(false);
@@ -11,7 +13,14 @@ pub(crate) fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
 
-        if !try_position_near_tray(&window) {
+        // In tray-popup mode (pinned), snap to the tray icon position.
+        // In floating mode (unpinned), the user has placed the window where they want it.
+        let is_pinned = app
+            .try_state::<WindowPinState>()
+            .map(|s| s.get())
+            .unwrap_or(true);
+
+        if is_pinned && !try_position_near_tray(&window) {
             warn!(target: "gitlabify::window", "tray position not set; falling back to center");
             let _ = window.move_window(Position::Center);
         }
@@ -31,7 +40,7 @@ pub(crate) fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
 /// On macOS, uses the positioner plugin's `TrayCenter` which works correctly.
 /// On Windows, manually calculates the position using the work area so the
 /// window sits flush against the taskbar with no gap.
-fn try_position_near_tray<R: Runtime>(window: &tauri::WebviewWindow<R>) -> bool {
+pub(crate) fn try_position_near_tray<R: Runtime>(window: &tauri::WebviewWindow<R>) -> bool {
     #[cfg(target_os = "macos")]
     {
         window.move_window(Position::TrayCenter).is_ok()

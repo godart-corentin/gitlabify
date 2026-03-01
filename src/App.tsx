@@ -2,6 +2,7 @@ import { useAppUpdater } from "./features/app-updater/model";
 import { useAuthSession, useLogoutOnAuthRequired } from "./features/auth-session/model";
 import { useConnectionStatus } from "./features/connection-status/model/useConnectionStatus";
 import { useTheme } from "./features/theme-switcher/model/useTheme";
+import { useWindowPin } from "./features/window-pin/model";
 import { AuthPage } from "./pages/auth/ui/AuthPage";
 import { InboxPage } from "./pages/inbox/ui/InboxPage";
 import { AppShell } from "./widgets/app-shell/ui/AppShell";
@@ -11,6 +12,7 @@ export const App = () => {
   const updater = useAppUpdater();
   useTheme();
   const { data: isOffline } = useConnectionStatus();
+  const { isPinned, togglePin, snapToTray } = useWindowPin();
 
   useLogoutOnAuthRequired(logout);
 
@@ -27,7 +29,15 @@ export const App = () => {
   }
 
   return (
-    <AppShell user={user} isOffline={isOffline} onLogout={logout} updater={updater}>
+    <AppShell
+      user={user}
+      isOffline={isOffline}
+      isPinned={isPinned}
+      onLogout={logout}
+      onTogglePin={togglePin}
+      onSnapToTray={snapToTray}
+      updater={updater}
+    >
       <InboxPage currentUsername={user.username} />
     </AppShell>
   );
