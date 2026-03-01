@@ -21,6 +21,7 @@
     "validate": "bun run lint && bun run format && bun run typecheck && bun run test"
   },
   "dependencies": {
+    "@sentry/react": "^10.40.0",
     "@tanstack/react-query": "^5.90.20",
     "@tauri-apps/api": "^2.10.0",
     "@tauri-apps/plugin-notification": "^2.2.0",

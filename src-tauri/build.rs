@@ -9,5 +9,9 @@ fn main() {
         println!("cargo:rustc-env=GITLAB_CLIENT_ID={}", val);
     }
 
+    if let Ok(val) = std::env::var("SENTRY_DSN") {
+        println!("cargo:rustc-env=SENTRY_DSN={}", val);
+    }
+
     tauri_build::build()
 }

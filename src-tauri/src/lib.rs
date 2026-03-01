@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use tauri::{App, AppHandle, Emitter, Listener, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tracing::{error, info, warn};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use modules::auth::{delete_token, get_token, save_token, verify_token};
 use modules::constants::{APP_STATE_FILE_NAME, APP_VERSION_KEY};
@@ -23,6 +24,7 @@ const BACKUP_DEEP_LINK_EVENT: &str = "deep-link://new-url";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _sentry_guard = init_sentry();
     init_tracing();
 
     tauri::Builder::default()
@@ -62,15 +64,40 @@ pub fn run() {
         });
 }
 
+fn init_sentry() -> sentry::ClientInitGuard {
+    match option_env!("SENTRY_DSN").filter(|s| !s.is_empty()) {
+        None => sentry::init(()),
+        Some(dsn) => {
+            let environment = if cfg!(debug_assertions) {
+                "development"
+            } else {
+                "production"
+            };
+            sentry::init(sentry::ClientOptions {
+                dsn: dsn.parse().ok(),
+                environment: Some(environment.into()),
+                release: sentry::release_name!(),
+                traces_sample_rate: 0.0,
+                ..Default::default()
+            })
+        }
+    }
+}
+
 fn init_tracing() {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .with_target(false)
-        .compact()
-        .try_init();
+        .compact();
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(fmt_layer)
+        .with(sentry_tracing::layer())
+        .try_init()
+        .ok();
 }
 
 fn setup_application<R: Runtime>(app: &mut App<R>) -> Result<(), Box<dyn std::error::Error>> {
