@@ -95,6 +95,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+
+      - name: Update release body from CHANGELOG
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          BODY=$(awk '/^## \[Unreleased\]/{next} /^## \[/{if(found) exit; found=1; next} found' CHANGELOG.md)
+          gh release edit "$TAG" --notes "$BODY"
+
       - name: Rename macOS artifacts and update latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
