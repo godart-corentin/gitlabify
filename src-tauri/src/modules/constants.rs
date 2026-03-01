@@ -20,3 +20,6 @@ pub(crate) const INBOX_CACHE_KEY_CONNECTION_STATUS: &str = "connection_status";
 pub(crate) const INBOX_CACHE_KEY_LAST_ERROR: &str = "last_error";
 pub(crate) const INBOX_CACHE_STALE_THRESHOLD_MS: u64 = 1000 * 60 * 5;
 pub(crate) const INBOX_CACHE_WRITE_DEBOUNCE_MS: u64 = 1000;
+
+pub(crate) const APP_STATE_FILE_NAME: &str = "app_state.json";
+pub(crate) const APP_VERSION_KEY: &str = "app_version";

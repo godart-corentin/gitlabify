@@ -75,3 +75,66 @@ jobs:
           releaseBody: "See the assets to download this version and install."
           releaseDraft: false
           prerelease: false
+
+      - name: Sign DMG
+        if: matrix.os == 'macos-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          DMG="src-tauri/target/universal-apple-darwin/release/bundle/dmg/gitlabify_${VERSION}_universal.dmg"
+          bunx tauri signer sign --private-key "$TAURI_SIGNING_PRIVATE_KEY" \
+            --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$DMG"
+          gh release upload "${{ github.ref_name }}" "${DMG}.sig"
+
+  post-release:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Rename macOS artifacts and update latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          # Download unversioned macOS updater artifacts
+          mkdir -p /tmp/artifacts
+          gh release download "$TAG" -D /tmp/artifacts \
+            -p 'gitlabify_universal.app.tar.gz' \
+            -p 'gitlabify_universal.app.tar.gz.sig'
+
+          # Delete old-named assets
+          gh release delete-asset "$TAG" gitlabify_universal.app.tar.gz --yes
+          gh release delete-asset "$TAG" gitlabify_universal.app.tar.gz.sig --yes
+
+          # Re-upload with versioned names
+          mv "/tmp/artifacts/gitlabify_universal.app.tar.gz" \
+             "/tmp/artifacts/gitlabify_${VERSION}_universal.app.tar.gz"
+          mv "/tmp/artifacts/gitlabify_universal.app.tar.gz.sig" \
+             "/tmp/artifacts/gitlabify_${VERSION}_universal.app.tar.gz.sig"
+
+          gh release upload "$TAG" \
+            "/tmp/artifacts/gitlabify_${VERSION}_universal.app.tar.gz" \
+            "/tmp/artifacts/gitlabify_${VERSION}_universal.app.tar.gz.sig"
+
+          # Update latest.json with versioned URLs
+          gh release download "$TAG" -D /tmp -p 'latest.json'
+          REPO="${{ github.repository }}"
+          BASE="https://github.com/${REPO}/releases/download/${TAG}"
+
+          jq --arg url "${BASE}/gitlabify_${VERSION}_universal.app.tar.gz" '
+            .platforms["darwin-aarch64"].url = $url |
+            .platforms["darwin-x86_64"].url = $url |
+            .platforms["darwin-aarch64-app"].url = $url |
+            .platforms["darwin-x86_64-app"].url = $url
+          ' /tmp/latest.json > /tmp/latest_fixed.json
+
+          gh release delete-asset "$TAG" latest.json --yes
+          mv /tmp/latest_fixed.json /tmp/latest.json
+          gh release upload "$TAG" /tmp/latest.json

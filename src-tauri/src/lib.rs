@@ -7,6 +7,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tracing::{error, info, warn};
 
 use modules::auth::{delete_token, get_token, save_token, verify_token};
+use modules::constants::{APP_STATE_FILE_NAME, APP_VERSION_KEY};
 use modules::inbox::{
     fetch_inbox, get_connection_status, get_inbox, mark_as_done, refresh_inbox, start_polling,
     InboxState,
@@ -78,6 +79,7 @@ fn setup_application<R: Runtime>(app: &mut App<R>) -> Result<(), Box<dyn std::er
 
     setup_window_auto_hide(app);
     register_deep_link_handlers(app);
+    clear_stale_webview_on_upgrade(app);
 
     let _tray = modules::tray::create_tray(app.handle())?;
 
@@ -168,5 +170,48 @@ fn register_global_shortcut<R: Runtime>(app: &App<R>) {
         Err(error) => {
             warn!(target: "gitlabify::bootstrap", %error, "failed to parse global shortcut");
         }
+    }
+}
+
+fn clear_stale_webview_on_upgrade<R: Runtime>(app: &App<R>) {
+    use tauri_plugin_store::StoreExt;
+
+    let handle = app.handle();
+    let store = if let Some(s) = handle.get_store(APP_STATE_FILE_NAME) {
+        s
+    } else {
+        match handle.store_builder(APP_STATE_FILE_NAME).build() {
+            Ok(s) => s,
+            Err(error) => {
+                warn!(target: "gitlabify::bootstrap", %error, "failed to open app state store");
+                return;
+            }
+        }
+    };
+
+    let current = env!("CARGO_PKG_VERSION");
+    let stored: Option<String> = store
+        .get(APP_VERSION_KEY)
+        .and_then(|v| serde_json::from_value(v).ok());
+
+    if stored.as_deref() == Some(current) {
+        return;
+    }
+
+    info!(
+        target: "gitlabify::bootstrap",
+        stored_version = ?stored, new_version = current,
+        "version changed, clearing WebView cache"
+    );
+
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if let Err(error) = window.clear_all_browsing_data() {
+            warn!(target: "gitlabify::bootstrap", %error, "failed to clear browsing data");
+        }
+    }
+
+    store.set(APP_VERSION_KEY, serde_json::json!(current));
+    if let Err(error) = store.save() {
+        warn!(target: "gitlabify::bootstrap", %error, "failed to persist app state");
     }
 }
