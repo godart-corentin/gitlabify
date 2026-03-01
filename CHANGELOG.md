@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-03-01
+
+### Changed
+
+- Replaced the app settings menu with a contextual update button that reflects the current updater state (available, downloading, ready to restart).
+
+### Fixed
+
+- Tray notification badge count now correctly aligns with inbox filter logic: excludes draft MRs, filters todo actions to relevant types (commented, mentioned, directly addressed), and omits self-authored actions.
+
 ## [1.1.0] - 2026-02-28
 
 ### Added
