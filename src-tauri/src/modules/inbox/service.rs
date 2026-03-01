@@ -16,6 +16,27 @@ use super::state::{
     emit_inbox_stale, set_connection_status, update_connection_status, update_count,
     InboxStalePayload, InboxState,
 };
+use crate::modules::gitlab::MergeRequest;
+
+const DRAFT_TITLE_PREFIXES: [&str; 2] = ["Draft:", "WIP:"];
+const TODO_ACTION_COMMENTED: &str = "commented";
+const TODO_ACTION_MENTIONED: &str = "mentioned";
+const TODO_ACTION_DIRECTLY_ADDRESSED: &str = "directly_addressed";
+
+fn is_draft_mr(mr: &MergeRequest) -> bool {
+    mr.draft
+        || mr.work_in_progress
+        || DRAFT_TITLE_PREFIXES
+            .iter()
+            .any(|prefix| mr.title.starts_with(prefix))
+}
+
+fn is_notification_action(action: &str) -> bool {
+    matches!(
+        action,
+        TODO_ACTION_COMMENTED | TODO_ACTION_MENTIONED | TODO_ACTION_DIRECTLY_ADDRESSED
+    )
+}
 
 pub(crate) struct ClientCache {
     token: Option<String>,
@@ -65,6 +86,7 @@ pub(crate) async fn fetch_inbox_once<R: Runtime>(
         let todos_future = client_arc.fetch_todos();
         let (mrs_result, todos_result) = tokio::join!(mrs_future, todos_future);
 
+        let mut current_user_id: Option<u64> = None;
         let mut merge_requests = Vec::new();
         let mut todos = Vec::new();
         let mut pipelines = Vec::new();
@@ -77,13 +99,20 @@ pub(crate) async fn fetch_inbox_once<R: Runtime>(
             Ok((fetched_mrs, user)) => {
                 has_success = true;
                 let user_id = user.id;
+                current_user_id = Some(user.id);
                 let mut pipeline_ids = HashSet::new();
                 let mut join_set = tokio::task::JoinSet::new();
                 let mut pending_fetches: HashSet<(u64, String)> = HashSet::new();
 
                 for mr in &fetched_mrs {
                     if mr.author.id != user_id {
-                        notification_ids.insert(mr.id);
+                        let qualifies = mr.is_reviewer
+                            && !mr.approved_by_me
+                            && !mr.reviewed_by_me
+                            && !is_draft_mr(mr);
+                        if qualifies {
+                            notification_ids.insert(mr.id);
+                        }
                         continue;
                     }
 
@@ -159,8 +188,15 @@ pub(crate) async fn fetch_inbox_once<R: Runtime>(
             Ok(fetched_todos) => {
                 has_success = true;
                 for todo in &fetched_todos {
-                    if let Some(target) = &todo.target {
-                        notification_ids.insert(target.id);
+                    let action = todo.action_name.to_lowercase();
+                    let is_self = current_user_id
+                        .map(|id| todo.author.id == id)
+                        .unwrap_or(false);
+
+                    if is_notification_action(&action) && !is_self {
+                        if let Some(target) = &todo.target {
+                            notification_ids.insert(target.id);
+                        }
                     }
                 }
                 todos = fetched_todos;
