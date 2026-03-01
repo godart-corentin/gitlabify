@@ -1,3 +1,5 @@
+import { clsx } from "clsx";
+import { Locate, Pin, PinOff } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { User } from "../../../entities/inbox/model";
@@ -8,15 +10,33 @@ import { Avatar } from "../../../shared/ui/avatar/Avatar";
 type AppShellProps = {
   user: User;
   isOffline?: boolean;
+  isPinned: boolean;
   onLogout: () => void;
+  onTogglePin: () => void;
+  onSnapToTray: () => void;
   updater: UpdaterState;
   children: ReactNode;
 };
 
-export const AppShell = ({ user, isOffline, onLogout, updater, children }: AppShellProps) => {
+const ICON_BUTTON_CLASS =
+  "flex items-center justify-center w-6 h-6 rounded text-base-content/60 hover:text-base-content hover:bg-base-200 transition-colors";
+
+export const AppShell = ({
+  user,
+  isOffline,
+  isPinned,
+  onLogout,
+  onTogglePin,
+  onSnapToTray,
+  updater,
+  children,
+}: AppShellProps) => {
   return (
     <main className="flex flex-col h-screen bg-base-100 text-base-content overflow-hidden">
-      <header className="flex items-center justify-between h-14 px-4 border-b border-base-300 bg-base-100 flex-shrink-0 z-20">
+      <header
+        data-tauri-drag-region={!isPinned || undefined}
+        className="flex items-center justify-between h-14 px-4 border-b border-base-300 bg-base-100 flex-shrink-0 z-20"
+      >
         <div className="flex items-center gap-2">
           <span className="text-xl">🦊</span>
           <div className="flex flex-col leading-none">
@@ -36,6 +56,28 @@ export const AppShell = ({ user, isOffline, onLogout, updater, children }: AppSh
             onInstallUpdate={updater.installUpdate}
             onRestartToApplyUpdate={updater.restartToApplyUpdate}
           />
+
+          {!isPinned ? (
+            <button
+              type="button"
+              onClick={onSnapToTray}
+              className={ICON_BUTTON_CLASS}
+              aria-label="Reset to tray position"
+              title="Reset to tray position"
+            >
+              <Locate size={14} />
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={onTogglePin}
+            className={clsx(ICON_BUTTON_CLASS, !isPinned && "text-primary")}
+            aria-label={isPinned ? "Float window" : "Snap to tray"}
+            title={isPinned ? "Float window" : "Snap to tray"}
+          >
+            {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+          </button>
 
           <div className="flex flex-col items-end leading-none">
             <span className="text-xs font-mono text-base-content/60">{user.username}</span>

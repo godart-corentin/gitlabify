@@ -13,7 +13,7 @@
     "windows": [
       {
         "title": "gitlabify",
-        "width": 450,
+        "width": 480,
         "height": 300,
         "decorations": false,
         "visible": false,

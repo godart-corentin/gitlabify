@@ -23,3 +23,9 @@ pub(crate) const INBOX_CACHE_WRITE_DEBOUNCE_MS: u64 = 1000;
 
 pub(crate) const APP_STATE_FILE_NAME: &str = "app_state.json";
 pub(crate) const APP_VERSION_KEY: &str = "app_version";
+
+pub(crate) const WINDOW_PREFERENCES_FILE_NAME: &str = "window-preferences.json";
+pub(crate) const WINDOW_PIN_KEY: &str = "is_pinned";
+pub(crate) const WINDOW_PREFERENCES_SCHEMA_VERSION_KEY: &str = "schema_version";
+/// Bump this when the meaning of stored keys changes, so stale data is discarded.
+pub(crate) const WINDOW_PREFERENCES_SCHEMA_VERSION: u32 = 1;

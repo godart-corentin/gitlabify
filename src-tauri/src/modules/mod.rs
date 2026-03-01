@@ -8,3 +8,4 @@ pub(crate) mod oauth;
 pub(crate) mod tray;
 pub(crate) mod utils;
 pub(crate) mod window_controls;
+pub(crate) mod window_pin;

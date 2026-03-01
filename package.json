@@ -65,6 +65,6 @@
       "oxlint --fix",
       "oxfmt --write"
     ],
-    "*.{json,md,css,scss,html,yml,yaml}": "oxfmt --write"
+    "*.{md,css,scss,html,yml,yaml}": "oxfmt --write"
   }
 }

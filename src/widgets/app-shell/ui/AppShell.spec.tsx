@@ -14,12 +14,16 @@ const USER_FIXTURE = {
 
 describe("AppShell", () => {
   const onLogout = vi.fn();
+  const onTogglePin = vi.fn();
+  const onSnapToTray = vi.fn();
   const installUpdate = vi.fn(async () => undefined);
   const restartToApplyUpdate = vi.fn(async () => undefined);
   const remindLater = vi.fn(async () => undefined);
 
   beforeEach(() => {
     onLogout.mockReset();
+    onTogglePin.mockReset();
+    onSnapToTray.mockReset();
     installUpdate.mockReset();
     restartToApplyUpdate.mockReset();
     remindLater.mockReset();
@@ -43,7 +47,14 @@ describe("AppShell", () => {
     const updater = createUpdaterFixture();
 
     render(
-      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
+      <AppShell
+        user={USER_FIXTURE}
+        onLogout={onLogout}
+        onTogglePin={onTogglePin}
+        onSnapToTray={onSnapToTray}
+        isPinned={false}
+        updater={updater}
+      >
         <div>content</div>
       </AppShell>,
     );
@@ -61,7 +72,14 @@ describe("AppShell", () => {
     });
 
     render(
-      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
+      <AppShell
+        user={USER_FIXTURE}
+        onLogout={onLogout}
+        onTogglePin={onTogglePin}
+        onSnapToTray={onSnapToTray}
+        isPinned={false}
+        updater={updater}
+      >
         <div>content</div>
       </AppShell>,
     );
@@ -83,7 +101,14 @@ describe("AppShell", () => {
     });
 
     render(
-      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
+      <AppShell
+        user={USER_FIXTURE}
+        onLogout={onLogout}
+        onTogglePin={onTogglePin}
+        onSnapToTray={onSnapToTray}
+        isPinned={false}
+        updater={updater}
+      >
         <div>content</div>
       </AppShell>,
     );
@@ -101,7 +126,14 @@ describe("AppShell", () => {
     });
 
     render(
-      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
+      <AppShell
+        user={USER_FIXTURE}
+        onLogout={onLogout}
+        onTogglePin={onTogglePin}
+        onSnapToTray={onSnapToTray}
+        isPinned={false}
+        updater={updater}
+      >
         <div>content</div>
       </AppShell>,
     );
@@ -122,7 +154,14 @@ describe("AppShell", () => {
     });
 
     const { rerender } = render(
-      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={updater}>
+      <AppShell
+        user={USER_FIXTURE}
+        onLogout={onLogout}
+        onTogglePin={onTogglePin}
+        onSnapToTray={onSnapToTray}
+        isPinned={false}
+        updater={updater}
+      >
         <div>content</div>
       </AppShell>,
     );
@@ -133,7 +172,14 @@ describe("AppShell", () => {
 
     const hiddenBannerUpdater = { ...updater, isBannerVisible: false };
     rerender(
-      <AppShell user={USER_FIXTURE} onLogout={onLogout} updater={hiddenBannerUpdater}>
+      <AppShell
+        user={USER_FIXTURE}
+        onLogout={onLogout}
+        onTogglePin={onTogglePin}
+        onSnapToTray={onSnapToTray}
+        isPinned={false}
+        updater={hiddenBannerUpdater}
+      >
         <div>content</div>
       </AppShell>,
     );
