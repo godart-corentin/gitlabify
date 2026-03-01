@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-03-02
+
+### Fixed
+
+- macOS: fix release pipeline to correctly embed the version in the binary by updating `Cargo.lock` before tagging.
+
 ## [1.2.0] - 2026-03-01
 
 ### Added
