@@ -5,7 +5,8 @@ import type { ReactNode } from "react";
 import type { User } from "../../../entities/inbox/model";
 import type { UpdaterState } from "../../../features/app-updater/model";
 import { UpdateBanner, UpdateButton } from "../../../features/app-updater/ui";
-import { Avatar } from "../../../shared/ui/avatar/Avatar";
+
+import { UserMenu } from "./UserMenu";
 
 type AppShellProps = {
   user: User;
@@ -79,18 +80,7 @@ export const AppShell = ({
             {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
           </button>
 
-          <div className="flex flex-col items-end leading-none">
-            <span className="text-xs font-mono text-base-content/60">{user.username}</span>
-          </div>
-          <Avatar src={user.avatarUrl} alt={user.name || "User"} size="sm" />
-
-          <button
-            onClick={onLogout}
-            type="button"
-            className="text-xs font-medium text-base-content/60 hover:text-base-content border-l border-base-300 pl-3"
-          >
-            Sign out
-          </button>
+          <UserMenu user={user} onLogout={onLogout} />
         </div>
       </header>
 
