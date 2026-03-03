@@ -7,6 +7,7 @@ use crate::modules::utils::lock_or_recover;
 /// coordinate space (physical pixels, primary-monitor scale, top-left origin,
 /// y downward). Updated on every tray icon event that carries a rect.
 #[derive(Clone, Copy, Default)]
+#[allow(dead_code)] // fields are read in platform-specific positioning code (macOS, Windows)
 pub(crate) struct TrayIconRect {
     pub x: f64,
     pub y: f64,
@@ -32,6 +33,7 @@ impl TrayIconState {
         *lock_or_recover(&self.inner, "TrayIconState") = Some(rect);
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub(crate) fn get(&self) -> Option<TrayIconRect> {
         *lock_or_recover(&self.inner, "TrayIconState")
     }
