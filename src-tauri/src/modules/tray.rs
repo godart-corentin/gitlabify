@@ -4,10 +4,11 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Runtime,
+    AppHandle, Manager, Runtime,
 };
 use tracing::warn;
 
+use crate::modules::tray_state::{TrayIconRect, TrayIconState};
 use crate::modules::window_controls::toggle_window;
 
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("../../icons/tray-icon.png");
@@ -119,6 +120,33 @@ pub(crate) fn create_tray<R: Runtime>(
         })
         .on_tray_icon_event(|tray, event| {
             tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
+
+            // Store tray icon position and cursor position for accurate
+            // multi-monitor positioning. tray-icon always emits physical
+            // coordinates; to_physical(1.0) is a no-op for the rect fields.
+            // The cursor physical position is used at show-time to identify
+            // which monitor the tray icon lives on.
+            // Only Click and Enter are captured — Move fires at high frequency
+            // and Leave records a post-exit cursor position, neither is useful.
+            let event_info = match &event {
+                TrayIconEvent::Click { rect, position, .. }
+                | TrayIconEvent::Enter { rect, position, .. } => Some((rect, position)),
+                _ => None,
+            };
+            if let Some((rect, cursor)) = event_info {
+                if let Some(state) = tray.app_handle().try_state::<TrayIconState>() {
+                    let pos = rect.position.to_physical(1.0);
+                    let size: tauri::PhysicalSize<f64> = rect.size.to_physical(1.0);
+                    state.update(TrayIconRect {
+                        x: pos.x,
+                        y: pos.y,
+                        width: size.width,
+                        height: size.height,
+                        cursor_x: cursor.x,
+                        cursor_y: cursor.y,
+                    });
+                }
+            }
 
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,

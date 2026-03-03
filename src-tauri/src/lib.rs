@@ -14,6 +14,7 @@ use modules::inbox::{
     InboxState,
 };
 use modules::oauth::{exchange_code_for_token, start_oauth_flow, OAuthState};
+use modules::tray_state::TrayIconState;
 use modules::window_controls::toggle_window;
 use modules::window_pin::{
     apply_pin_state, get_pinned, load_pin_state, set_pinned, snap_to_tray, WindowPinState,
@@ -47,6 +48,7 @@ pub fn run() {
             code_verifier: Mutex::new(None),
         })
         .manage(InboxState::new())
+        .manage(TrayIconState::new())
         .manage(WindowPinState::new(true))
         .setup(setup_application)
         .invoke_handler(tauri::generate_handler![
