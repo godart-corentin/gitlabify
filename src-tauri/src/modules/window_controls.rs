@@ -126,10 +126,7 @@ fn position_near_tray_macos<R: Runtime>(window: &tauri::WebviewWindow<R>) -> boo
     // Retrieve the stored tray rect (physical pixels, tray-icon coordinate space).
     use crate::modules::tray_state::TrayIconState;
 
-    let tray_rect = match window
-        .app_handle()
-        .try_state::<TrayIconState>()
-    {
+    let tray_rect = match window.app_handle().try_state::<TrayIconState>() {
         Some(s) => match s.get() {
             Some(r) => r,
             None => {
