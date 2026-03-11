@@ -1666,7 +1666,7 @@ dependencies = [
  "base64 0.22.1",
  "dotenvy",
  "image",
- "rand 0.8.5",
+ "rand 0.9.2",
  "reqwest 0.13.2",
  "sentry",
  "sentry-tracing 0.46.2",
