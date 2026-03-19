@@ -51,7 +51,7 @@
     "autoprefixer": "^10.4.24",
     "daisyui": "^5.5.14",
     "husky": "^9.1.7",
-    "jsdom": "^27.4.0",
+    "jsdom": "^29.0.0",
     "lint-staged": "^16.2.7",
     "oxfmt": "^0.28.0",
     "oxlint": "^1.43.0",
