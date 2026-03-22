@@ -44,7 +44,7 @@ tokio = { version = "1.50.0", features = ["full"] }
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "registry"] }
-sentry = { version = "0.34", default-features = false, features = [
+sentry = { version = "0.47", default-features = false, features = [
     "backtrace", "contexts", "panic", "reqwest", "rustls",
 ] }
 sentry-tracing = "0.47"
