@@ -94,61 +94,110 @@ impl GitLabClient {
         }
 
         for mr in &mut all_mrs {
-            if !mr.is_reviewer {
-                continue;
-            }
+            if mr.is_reviewer {
+                let (approvals_result, reviewers_result) = tokio::join!(
+                    self.fetch_merge_request_approvals(mr.project_id, mr.iid),
+                    self.fetch_merge_request_reviewers(mr.project_id, mr.iid)
+                );
 
-            let (approvals_result, reviewers_result) = tokio::join!(
-                self.fetch_merge_request_approvals(mr.project_id, mr.iid),
-                self.fetch_merge_request_reviewers(mr.project_id, mr.iid)
-            );
+                match approvals_result {
+                    Ok(approvals) => {
+                        mr.approved_by_me = approvals
+                            .approved_by
+                            .iter()
+                            .any(|entry| entry.user.id == user_id);
+                    }
+                    Err(GitLabError::Unauthorized) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            "approvals unauthorized; skipping"
+                        );
+                    }
+                    Err(error) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            %error,
+                            "approvals fetch error; skipping"
+                        );
+                    }
+                }
 
-            match approvals_result {
-                Ok(approvals) => {
-                    mr.approved_by_me = approvals
-                        .approved_by
-                        .iter()
-                        .any(|entry| entry.user.id == user_id);
+                match reviewers_result {
+                    Ok(reviewers) => {
+                        mr.reviewed_by_me = did_user_review_mr(&reviewers, user_id);
+                    }
+                    Err(GitLabError::Unauthorized) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            "reviewers unauthorized; skipping"
+                        );
+                    }
+                    Err(error) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            %error,
+                            "reviewers fetch error; skipping"
+                        );
+                    }
                 }
-                Err(GitLabError::Unauthorized) => {
-                    warn!(
-                        target: "gitlabify::gitlab",
-                        project_id = mr.project_id,
-                        iid = mr.iid,
-                        "approvals unauthorized; skipping"
-                    );
-                }
-                Err(error) => {
-                    warn!(
-                        target: "gitlabify::gitlab",
-                        project_id = mr.project_id,
-                        iid = mr.iid,
-                        %error,
-                        "approvals fetch error; skipping"
-                    );
-                }
-            }
+            } else if mr.author.id == user_id {
+                let (approvals_result, discussions_result) = tokio::join!(
+                    self.fetch_merge_request_approvals(mr.project_id, mr.iid),
+                    self.fetch_merge_request_discussions(mr.project_id, mr.iid)
+                );
 
-            match reviewers_result {
-                Ok(reviewers) => {
-                    mr.reviewed_by_me = did_user_review_mr(&reviewers, user_id);
+                match approvals_result {
+                    Ok(approvals) => {
+                        mr.approval_count = approvals.approved_by.len() as u32;
+                    }
+                    Err(GitLabError::Unauthorized) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            "approvals unauthorized; skipping"
+                        );
+                    }
+                    Err(error) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            %error,
+                            "approvals fetch error; skipping"
+                        );
+                    }
                 }
-                Err(GitLabError::Unauthorized) => {
-                    warn!(
-                        target: "gitlabify::gitlab",
-                        project_id = mr.project_id,
-                        iid = mr.iid,
-                        "reviewers unauthorized; skipping"
-                    );
-                }
-                Err(error) => {
-                    warn!(
-                        target: "gitlabify::gitlab",
-                        project_id = mr.project_id,
-                        iid = mr.iid,
-                        %error,
-                        "reviewers fetch error; skipping"
-                    );
+
+                match discussions_result {
+                    Ok(discussions) => {
+                        mr.unresolved_discussion_count = count_unresolved_discussions(&discussions);
+                    }
+                    Err(GitLabError::Unauthorized) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            "discussions unauthorized; skipping"
+                        );
+                    }
+                    Err(error) => {
+                        warn!(
+                            target: "gitlabify::gitlab",
+                            project_id = mr.project_id,
+                            iid = mr.iid,
+                            %error,
+                            "discussions fetch error; skipping"
+                        );
+                    }
                 }
             }
         }
@@ -513,6 +562,8 @@ mod tests {
         assert_eq!(mr.title, "Test MR");
         assert_eq!(mr.author.username, "testuser");
         assert!(!mr.reviewed_by_me);
+        assert_eq!(mr.approval_count, 0);
+        assert_eq!(mr.unresolved_discussion_count, 0);
     }
 
     #[test]
