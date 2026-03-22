@@ -10,7 +10,8 @@ use crate::modules::constants::{
 
 use super::error::GitLabError;
 use super::models::{
-    Author, MergeRequest, MergeRequestApprovals, MergeRequestReviewerStatus, Pipeline, Todo,
+    Author, Discussion, MergeRequest, MergeRequestApprovals, MergeRequestReviewerStatus, Pipeline,
+    Todo,
 };
 use super::parse::{
     extract_merge_request_iid, is_comment_or_mention_action, resolve_project_ref, ProjectRef,
@@ -293,6 +294,18 @@ impl GitLabClient {
         self.get_json::<Vec<MergeRequestReviewerStatus>>(&url).await
     }
 
+    pub(crate) async fn fetch_merge_request_discussions(
+        &self,
+        project_id: u64,
+        merge_request_iid: u64,
+    ) -> Result<Vec<Discussion>, GitLabError> {
+        let url = format!(
+            "{}/api/v4/projects/{}/merge_requests/{}/discussions",
+            self.host, project_id, merge_request_iid
+        );
+        self.get_json::<Vec<Discussion>>(&url).await
+    }
+
     pub(crate) async fn mark_todo_as_done(&self, todo_id: u64) -> Result<(), GitLabError> {
         let url = format!("{}/api/v4/todos/{todo_id}/mark_as_done", self.host);
         self.post_empty(&url).await
@@ -397,6 +410,13 @@ impl GitLabClient {
     }
 }
 
+fn count_unresolved_discussions(discussions: &[Discussion]) -> u32 {
+    discussions
+        .iter()
+        .filter(|d| d.notes.iter().any(|n| n.resolvable && !n.resolved))
+        .count() as u32
+}
+
 fn did_user_review_mr(reviewers: &[MergeRequestReviewerStatus], user_id: u64) -> bool {
     reviewers.iter().any(|reviewer| {
         reviewer.user.id == user_id && reviewer.state.eq_ignore_ascii_case(REVIEWED_REVIEWER_STATE)
@@ -419,7 +439,7 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
-    use super::{did_user_review_mr, GitLabClient, GitLabError};
+    use super::{count_unresolved_discussions, did_user_review_mr, GitLabClient, GitLabError};
     use crate::modules::constants::GITLAB_HOST;
     use crate::modules::gitlab::models::{MergeRequest, MergeRequestReviewerStatus, Todo};
 
@@ -595,6 +615,46 @@ mod tests {
         assert!(matches!(result, Err(GitLabError::Unauthorized)));
         assert_eq!(request_count.load(Ordering::Relaxed), 1);
         let _ = server_handle.await;
+    }
+
+    #[test]
+    fn counts_unresolved_discussion_threads() {
+        use crate::modules::gitlab::models::{Discussion, DiscussionNote};
+
+        let discussions = vec![
+            // resolvable and unresolved → counts
+            Discussion {
+                notes: vec![DiscussionNote { resolvable: true, resolved: false }],
+            },
+            // resolvable and resolved → does not count
+            Discussion {
+                notes: vec![DiscussionNote { resolvable: true, resolved: true }],
+            },
+            // not resolvable (system note) → does not count
+            Discussion {
+                notes: vec![DiscussionNote { resolvable: false, resolved: false }],
+            },
+            // empty notes → does not count
+            Discussion { notes: vec![] },
+        ];
+
+        assert_eq!(count_unresolved_discussions(&discussions), 1);
+    }
+
+    #[test]
+    fn counts_zero_when_all_discussions_resolved() {
+        use crate::modules::gitlab::models::{Discussion, DiscussionNote};
+
+        let discussions = vec![
+            Discussion {
+                notes: vec![DiscussionNote { resolvable: true, resolved: true }],
+            },
+            Discussion {
+                notes: vec![DiscussionNote { resolvable: true, resolved: true }],
+            },
+        ];
+
+        assert_eq!(count_unresolved_discussions(&discussions), 0);
     }
 
     #[tokio::test]
