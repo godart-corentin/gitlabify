@@ -349,7 +349,7 @@ impl GitLabClient {
         merge_request_iid: u64,
     ) -> Result<Vec<Discussion>, GitLabError> {
         let url = format!(
-            "{}/api/v4/projects/{}/merge_requests/{}/discussions",
+            "{}/api/v4/projects/{}/merge_requests/{}/discussions?per_page=100",
             self.host, project_id, merge_request_iid
         );
         self.get_json::<Vec<Discussion>>(&url).await
