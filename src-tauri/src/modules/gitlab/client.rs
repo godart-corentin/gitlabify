@@ -675,15 +675,24 @@ mod tests {
         let discussions = vec![
             // resolvable and unresolved → counts
             Discussion {
-                notes: vec![DiscussionNote { resolvable: true, resolved: false }],
+                notes: vec![DiscussionNote {
+                    resolvable: true,
+                    resolved: false,
+                }],
             },
             // resolvable and resolved → does not count
             Discussion {
-                notes: vec![DiscussionNote { resolvable: true, resolved: true }],
+                notes: vec![DiscussionNote {
+                    resolvable: true,
+                    resolved: true,
+                }],
             },
             // not resolvable (system note) → does not count
             Discussion {
-                notes: vec![DiscussionNote { resolvable: false, resolved: false }],
+                notes: vec![DiscussionNote {
+                    resolvable: false,
+                    resolved: false,
+                }],
             },
             // empty notes → does not count
             Discussion { notes: vec![] },
@@ -698,10 +707,16 @@ mod tests {
 
         let discussions = vec![
             Discussion {
-                notes: vec![DiscussionNote { resolvable: true, resolved: true }],
+                notes: vec![DiscussionNote {
+                    resolvable: true,
+                    resolved: true,
+                }],
             },
             Discussion {
-                notes: vec![DiscussionNote { resolvable: true, resolved: true }],
+                notes: vec![DiscussionNote {
+                    resolvable: true,
+                    resolved: true,
+                }],
             },
         ];
 

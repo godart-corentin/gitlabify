@@ -13,6 +13,7 @@
 ### Task 1: Add Discussion model and new fields to MergeRequest (Rust)
 
 **Files:**
+
 - Modify: `src-tauri/src/modules/gitlab/models.rs`
 
 **Step 1: Add `Discussion` and `DiscussionNote` structs**
@@ -65,6 +66,7 @@ git commit -m "feat(backend): add approval_count and unresolved_discussion_count
 ### Task 2: Add `fetch_merge_request_discussions` and `count_unresolved_discussions` with tests
 
 **Files:**
+
 - Modify: `src-tauri/src/modules/gitlab/client.rs`
 - Modify: `src-tauri/src/modules/gitlab/mod.rs` (if Discussion needs to be re-exported)
 
@@ -183,6 +185,7 @@ git commit -m "feat(backend): add fetch_merge_request_discussions and count_unre
 ### Task 3: Extend `fetch_merge_requests` to fetch counts for authored MRs
 
 **Files:**
+
 - Modify: `src-tauri/src/modules/gitlab/client.rs`
 
 Context: The existing loop at the bottom of `fetch_merge_requests` (around line 95) iterates `all_mrs` and handles reviewer MRs:
@@ -369,6 +372,7 @@ git commit -m "feat(backend): fetch approval and discussion counts for authored 
 ### Task 4: Update TypeScript MergeRequest schema
 
 **Files:**
+
 - Modify: `src/entities/inbox/model/schemas/project.ts`
 
 **Step 1: Add fields to `MergeRequestSchema`**
@@ -410,6 +414,7 @@ git commit -m "feat(frontend): add approvalCount and unresolvedDiscussionCount t
 ### Task 5: Update `InboxItem` to display counts
 
 **Files:**
+
 - Modify: `src/entities/inbox/ui/InboxItem.tsx`
 
 **Step 1: Add new props to `InboxItemProps`**
@@ -443,18 +448,22 @@ import { Check, Copy, ThumbsUp, MessageCircle } from "lucide-react";
 In the right-side `<div className="flex items-center gap-3 shrink-0">`, add two count nodes before the `timeAgo` span:
 
 ```tsx
-{approvalCount != null && approvalCount > 0 ? (
-  <span className="inline-flex items-center gap-1 text-xs font-mono text-success/70">
-    <ThumbsUp className="h-3 w-3" />
-    {approvalCount}
-  </span>
-) : null}
-{unresolvedDiscussionCount != null && unresolvedDiscussionCount > 0 ? (
-  <span className="inline-flex items-center gap-1 text-xs font-mono text-warning/70">
-    <MessageCircle className="h-3 w-3" />
-    {unresolvedDiscussionCount}
-  </span>
-) : null}
+{
+  approvalCount != null && approvalCount > 0 ? (
+    <span className="inline-flex items-center gap-1 text-xs font-mono text-success/70">
+      <ThumbsUp className="h-3 w-3" />
+      {approvalCount}
+    </span>
+  ) : null;
+}
+{
+  unresolvedDiscussionCount != null && unresolvedDiscussionCount > 0 ? (
+    <span className="inline-flex items-center gap-1 text-xs font-mono text-warning/70">
+      <MessageCircle className="h-3 w-3" />
+      {unresolvedDiscussionCount}
+    </span>
+  ) : null;
+}
 ```
 
 The full right-side div should look like:
@@ -507,6 +516,7 @@ git commit -m "feat(ui): render approval count and unresolved discussion count o
 ### Task 6: Wire counts through `InboxItemList`
 
 **Files:**
+
 - Modify: `src/widgets/inbox-dashboard/ui/InboxItemList.tsx`
 
 **Step 1: Pass counts to `<InboxItem>` when filter is "mrs"**

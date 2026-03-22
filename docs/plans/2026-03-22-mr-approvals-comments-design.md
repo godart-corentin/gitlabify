@@ -10,6 +10,7 @@ The MR card in the "mrs" tab shows ID, title, author, branch, and last updated t
 ## Goal
 
 Display on each authored MR card:
+
 - The number of approvals received
 - The number of unresolved discussion threads
 
@@ -59,6 +60,7 @@ Errors are soft-skipped with a `warn!` log, same as the existing reviewer fetch 
 ### Schema (`src/entities/inbox/model/schemas/project.ts`)
 
 Add to `MergeRequestSchema`:
+
 ```typescript
 approvalCount: num(),
 unresolvedDiscussionCount: num(),
@@ -67,12 +69,14 @@ unresolvedDiscussionCount: num(),
 ### Card component (`src/entities/inbox/ui/InboxItem.tsx`)
 
 Add optional props:
+
 ```typescript
 approvalCount?: number
 unresolvedDiscussionCount?: number
 ```
 
 Render in the right-side section (before the timestamp), only when the value is > 0:
+
 - Approvals: small muted-green label, e.g. `✓ 2`
 - Unresolved: small muted-amber label, e.g. `⊙ 3`
 
@@ -85,6 +89,7 @@ When `filter === "mrs"`, pass `approvalCount` and `unresolvedDiscussionCount` fr
 ## API calls added per poll cycle
 
 For each authored MR (typically 0–10):
+
 - `GET /projects/{id}/merge_requests/{iid}/approvals`
 - `GET /projects/{id}/merge_requests/{iid}/discussions`
 
