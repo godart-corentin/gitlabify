@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { clsx } from "clsx";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, ThumbsUp, MessageCircle } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { formatShortRelativeTime } from "../../../shared/lib/date/formatShortRelativeTime";
@@ -32,6 +32,8 @@ type InboxItemProps = {
   dataItemId?: string;
   isHovered?: boolean;
   onMarkAsDone?: () => void | Promise<void>;
+  approvalCount?: number;
+  unresolvedDiscussionCount?: number;
 };
 
 export function InboxItem({
@@ -51,6 +53,8 @@ export function InboxItem({
   dataItemId,
   isHovered = false,
   onMarkAsDone,
+  approvalCount,
+  unresolvedDiscussionCount,
 }: InboxItemProps) {
   const timeAgo = formatShortRelativeTime(updatedAt);
 
@@ -139,6 +143,18 @@ export function InboxItem({
           >
             <Check className="h-4 w-4" />
           </button>
+        ) : null}
+        {approvalCount != null && approvalCount > 0 ? (
+          <span className="inline-flex items-center gap-1 text-xs font-mono text-success/70">
+            <ThumbsUp className="h-3 w-3" />
+            {approvalCount}
+          </span>
+        ) : null}
+        {unresolvedDiscussionCount != null && unresolvedDiscussionCount > 0 ? (
+          <span className="inline-flex items-center gap-1 text-xs font-mono text-warning/70">
+            <MessageCircle className="h-3 w-3" />
+            {unresolvedDiscussionCount}
+          </span>
         ) : null}
         <span className="text-xs font-mono text-base-content/40 whitespace-nowrap">{timeAgo}</span>
         <Avatar src={author.avatarUrl} alt={author.name} size="sm" />
