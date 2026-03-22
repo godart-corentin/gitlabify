@@ -46,6 +46,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 502,
@@ -83,6 +85,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 503,
@@ -120,6 +124,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 504,
@@ -146,6 +152,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 505,
@@ -172,6 +180,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 506,
@@ -198,6 +208,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 507,
@@ -224,6 +236,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 508,
@@ -250,6 +264,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 509,
@@ -276,6 +292,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 510,
@@ -302,6 +320,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 511,
@@ -328,6 +348,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
     {
       id: 512,
@@ -354,6 +376,8 @@ export const MOCK_INBOX_DATA: InboxData = {
       isReviewer: false,
       approvedByMe: false,
       reviewedByMe: false,
+      approvalCount: 0,
+      unresolvedDiscussionCount: 0,
     },
   ],
   todos: [

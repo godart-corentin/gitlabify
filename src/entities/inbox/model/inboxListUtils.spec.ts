@@ -27,6 +27,8 @@ const createMergeRequest = (overrides: Partial<MergeRequest>): MergeRequest => (
   isReviewer: false,
   approvedByMe: false,
   reviewedByMe: false,
+  approvalCount: 0,
+  unresolvedDiscussionCount: 0,
   ...overrides,
 });
 
