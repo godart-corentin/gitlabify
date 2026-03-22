@@ -106,6 +106,8 @@ describe("notification diff", () => {
           isReviewer: true,
           approvedByMe: false,
           reviewedByMe: false,
+          approvalCount: 0,
+          unresolvedDiscussionCount: 0,
         },
       };
       expect(getNotificationTitle(1, item)).toBe("Review request from Jane Doe");
@@ -159,6 +161,8 @@ describe("notification diff", () => {
           isReviewer: true,
           approvedByMe: false,
           reviewedByMe: false,
+          approvalCount: 0,
+          unresolvedDiscussionCount: 0,
         },
         todo: {
           id: 1,
@@ -199,6 +203,8 @@ describe("notification diff", () => {
           isReviewer: true,
           approvedByMe: false,
           reviewedByMe: false,
+          approvalCount: 0,
+          unresolvedDiscussionCount: 0,
         },
       };
       expect(getNotificationBody(item)).toBe("MR Title");
@@ -272,6 +278,8 @@ describe("notification diff", () => {
           isReviewer: true,
           approvedByMe: false,
           reviewedByMe: false,
+          approvalCount: 0,
+          unresolvedDiscussionCount: 0,
         },
       };
       expect(isUrgentNotification(item)).toBe(true);
