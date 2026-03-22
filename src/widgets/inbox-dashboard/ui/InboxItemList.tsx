@@ -159,6 +159,8 @@ export const InboxItemList = ({
         dataItemId={item.id}
         isHovered={isHovered}
         onMarkAsDone={canMarkAsDone ? handleTodoDone : undefined}
+        approvalCount={filter === "mrs" ? mr?.approvalCount : undefined}
+        unresolvedDiscussionCount={filter === "mrs" ? mr?.unresolvedDiscussionCount : undefined}
       />
     );
   });
