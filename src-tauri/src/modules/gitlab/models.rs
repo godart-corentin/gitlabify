@@ -37,6 +37,10 @@ pub(crate) struct MergeRequest {
     pub(crate) approved_by_me: bool,
     #[serde(default)]
     pub(crate) reviewed_by_me: bool,
+    #[serde(default)]
+    pub(crate) approval_count: u32,
+    #[serde(default)]
+    pub(crate) unresolved_discussion_count: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -106,4 +110,19 @@ pub(crate) struct MergeRequestReviewerUser {
 pub(crate) struct MergeRequestReviewerStatus {
     pub(crate) user: MergeRequestReviewerUser,
     pub(crate) state: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub(crate) struct DiscussionNote {
+    #[serde(default)]
+    pub(crate) resolvable: bool,
+    #[serde(default)]
+    pub(crate) resolved: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub(crate) struct Discussion {
+    pub(crate) notes: Vec<DiscussionNote>,
 }
