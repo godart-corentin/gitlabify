@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-28
+
+### Added
+
+- Merge request cards now show approval counts and unresolved discussion counts for authored merge requests.
+
+### Changed
+
+- Replaced the header user controls with an avatar dropdown menu.
+- Refreshed the application icons with the Gitlabify fox branding.
+- Updated key Rust and Tauri dependencies, including Tauri, Tokio, Sentry, `tracing-subscriber`, `image`, and related tooling.
+
+### Fixed
+
+- Backend discussion fetching now requests up to 100 items per page to avoid silently truncating unresolved discussion counts on merge requests.
+- Vitest now resolves path aliases and static assets correctly during tests.
+
 ## [1.2.1] - 2026-03-02
 
 ### Fixed
