@@ -393,7 +393,9 @@ fn ensure_todo_exists_in_local_state(
 
     let todo_exists = inbox_data.todos.iter().any(|todo| todo.id == todo_id);
     if !todo_exists {
-        return Err(InboxServiceError::Fetch(format!("todo {todo_id} not found")));
+        return Err(InboxServiceError::Fetch(format!(
+            "todo {todo_id} not found"
+        )));
     }
 
     Ok(())
@@ -412,7 +414,9 @@ fn remove_todo_from_local_state(
     inbox_data.todos.retain(|todo| todo.id != todo_id);
     let removed_count = original_len.saturating_sub(inbox_data.todos.len());
     if removed_count == 0 {
-        return Err(InboxServiceError::Fetch(format!("todo {todo_id} not found")));
+        return Err(InboxServiceError::Fetch(format!(
+            "todo {todo_id} not found"
+        )));
     }
 
     let current_count = state.unread_count.load(Ordering::Relaxed);
@@ -537,13 +541,13 @@ async fn refresh_cached_oauth_session<R: Runtime>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
 
     use crate::modules::gitlab::InboxData;
     use crate::modules::utils::lock_or_recover;
 
-    use super::{InboxServiceError, InboxState, mark_as_done_with_confirmation};
+    use super::{mark_as_done_with_confirmation, InboxServiceError, InboxState};
 
     fn create_inbox_data(todo_ids: &[u64]) -> InboxData {
         serde_json::from_value(serde_json::json!({
@@ -611,11 +615,15 @@ mod tests {
         let state = create_state_with_todos(&[42, 84]);
 
         let result = mark_as_done_with_confirmation(&state, 42, |_remote_todo_id| async {
-            Err(InboxServiceError::Fetch("gitlab request failed".to_string()))
+            Err(InboxServiceError::Fetch(
+                "gitlab request failed".to_string(),
+            ))
         })
         .await;
 
-        assert!(matches!(result, Err(InboxServiceError::Fetch(message)) if message == "gitlab request failed"));
+        assert!(
+            matches!(result, Err(InboxServiceError::Fetch(message)) if message == "gitlab request failed")
+        );
 
         let stored_data = lock_or_recover(&state.data, "test inbox data")
             .clone()
@@ -638,7 +646,9 @@ mod tests {
             })
             .await;
 
-        assert!(matches!(result, Err(InboxServiceError::Fetch(message)) if message == "todo 42 not found"));
+        assert!(
+            matches!(result, Err(InboxServiceError::Fetch(message)) if message == "todo 42 not found")
+        );
         assert_eq!(remote_call_count.load(Ordering::Relaxed), 0);
 
         let stored_data = lock_or_recover(&state.data, "test inbox data")
