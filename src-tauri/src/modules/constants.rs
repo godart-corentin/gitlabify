@@ -10,6 +10,7 @@ pub(crate) const PIPELINE_PAGE_SIZE: u32 = 1;
 pub(crate) const HTTP_TIMEOUT_SECS: u64 = 10;
 pub(crate) const GITLAB_API_MAX_RETRIES: usize = 3;
 pub(crate) const GITLAB_API_RETRY_BASE_DELAY_MS: u64 = 500;
+pub(crate) const GITLAB_MR_ENRICHMENT_CONCURRENCY: usize = 4;
 pub(crate) const OAUTH_VERIFIER_LENGTH: usize = 128;
 
 pub(crate) const INBOX_CACHE_FILE_NAME: &str = "inbox_cache.json";
