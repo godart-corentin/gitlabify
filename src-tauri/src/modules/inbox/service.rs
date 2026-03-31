@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::future::Future;
 use std::sync::{atomic::Ordering, Arc};
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
@@ -22,6 +23,13 @@ const DRAFT_TITLE_PREFIXES: [&str; 2] = ["Draft:", "WIP:"];
 const TODO_ACTION_COMMENTED: &str = "commented";
 const TODO_ACTION_MENTIONED: &str = "mentioned";
 const TODO_ACTION_DIRECTLY_ADDRESSED: &str = "directly_addressed";
+
+struct MarkAsDoneLocalUpdate {
+    updated_data: InboxData,
+    updated_count: usize,
+    last_updated_at_ms: u64,
+    is_offline: bool,
+}
 
 fn is_draft_mr(mr: &MergeRequest) -> bool {
     mr.draft
@@ -309,56 +317,111 @@ pub(crate) async fn mark_as_done<R: Runtime>(
     );
 
     let state = app_handle.state::<InboxState>();
-    let (updated_data, updated_count, last_updated_at_ms, is_offline) = {
-        let mut data_guard = lock_or_recover(&state.data, "InboxState data");
-        let inbox_data = data_guard
-            .as_mut()
-            .ok_or_else(|| InboxServiceError::Fetch("inbox data is unavailable".to_string()))?;
+    let local_update = mark_as_done_with_confirmation(&state, todo_id, |confirmed_todo_id| {
+        let client = Arc::clone(&client);
 
-        let original_len = inbox_data.todos.len();
-        inbox_data.todos.retain(|todo| todo.id != todo_id);
-        let removed_count = original_len.saturating_sub(inbox_data.todos.len());
-        if removed_count == 0 {
-            return Err(InboxServiceError::Fetch(format!(
-                "todo {todo_id} not found"
-            )));
+        async move {
+            client
+                .mark_todo_as_done(confirmed_todo_id)
+                .await
+                .map_err(|error| {
+                    InboxServiceError::Fetch(format!(
+                        "failed to mark todo {confirmed_todo_id} as done on GitLab: {error}"
+                    ))
+                })
         }
+    })
+    .await;
 
-        let current_count = state.unread_count.load(Ordering::Relaxed);
-        let next_count = current_count.saturating_sub(removed_count);
-        (inbox_data.clone(), next_count, now_ms(), state.is_offline())
+    let local_update = match local_update {
+        Ok(update) => update,
+        Err(error) => {
+            let message = error.to_string();
+            warn!(target: "gitlabify::inbox", %message, todo_id, "mark_as_done failed");
+            state.set_error(message.clone());
+            let _ = app_handle.emit("inbox-error", message);
+            return Err(error);
+        }
     };
 
-    update_count(app_handle, updated_count);
-    state.set_last_updated_at_ms(Some(last_updated_at_ms));
+    update_count(app_handle, local_update.updated_count);
+    state.set_last_updated_at_ms(Some(local_update.last_updated_at_ms));
     state.clear_error();
 
-    let _ = app_handle.emit("inbox-updated", &updated_data);
+    let _ = app_handle.emit("inbox-updated", &local_update.updated_data);
     emit_inbox_stale(
         app_handle,
         InboxStalePayload {
             is_stale: false,
-            is_offline,
-            last_updated_at_ms: Some(last_updated_at_ms),
+            is_offline: local_update.is_offline,
+            last_updated_at_ms: Some(local_update.last_updated_at_ms),
             last_error: None,
         },
     );
-    persist_cache_success(app_handle, &updated_data, updated_count, last_updated_at_ms);
-
-    let app_handle_for_task = app_handle.clone();
-    let client_for_task = Arc::clone(&client);
-    tauri::async_runtime::spawn(async move {
-        if let Err(error) = client_for_task.mark_todo_as_done(todo_id).await {
-            let message = format!("Failed to mark todo {todo_id} as done on GitLab: {error}");
-            warn!(target: "gitlabify::inbox", %message);
-            app_handle_for_task
-                .state::<InboxState>()
-                .set_error(message.clone());
-            let _ = app_handle_for_task.emit("inbox-error", message);
-        }
-    });
+    persist_cache_success(
+        app_handle,
+        &local_update.updated_data,
+        local_update.updated_count,
+        local_update.last_updated_at_ms,
+    );
 
     Ok(())
+}
+
+async fn mark_as_done_with_confirmation<F, Fut>(
+    state: &InboxState,
+    todo_id: u64,
+    mark_remote_done: F,
+) -> Result<MarkAsDoneLocalUpdate, InboxServiceError>
+where
+    F: FnOnce(u64) -> Fut,
+    Fut: Future<Output = Result<(), InboxServiceError>>,
+{
+    ensure_todo_exists_in_local_state(state, todo_id)?;
+    mark_remote_done(todo_id).await?;
+    remove_todo_from_local_state(state, todo_id)
+}
+
+fn ensure_todo_exists_in_local_state(
+    state: &InboxState,
+    todo_id: u64,
+) -> Result<(), InboxServiceError> {
+    let data_guard = lock_or_recover(&state.data, "InboxState data");
+    let inbox_data = data_guard
+        .as_ref()
+        .ok_or_else(|| InboxServiceError::Fetch("inbox data is unavailable".to_string()))?;
+
+    let todo_exists = inbox_data.todos.iter().any(|todo| todo.id == todo_id);
+    if !todo_exists {
+        return Err(InboxServiceError::Fetch(format!("todo {todo_id} not found")));
+    }
+
+    Ok(())
+}
+
+fn remove_todo_from_local_state(
+    state: &InboxState,
+    todo_id: u64,
+) -> Result<MarkAsDoneLocalUpdate, InboxServiceError> {
+    let mut data_guard = lock_or_recover(&state.data, "InboxState data");
+    let inbox_data = data_guard
+        .as_mut()
+        .ok_or_else(|| InboxServiceError::Fetch("inbox data is unavailable".to_string()))?;
+
+    let original_len = inbox_data.todos.len();
+    inbox_data.todos.retain(|todo| todo.id != todo_id);
+    let removed_count = original_len.saturating_sub(inbox_data.todos.len());
+    if removed_count == 0 {
+        return Err(InboxServiceError::Fetch(format!("todo {todo_id} not found")));
+    }
+
+    let current_count = state.unread_count.load(Ordering::Relaxed);
+    Ok(MarkAsDoneLocalUpdate {
+        updated_data: inbox_data.clone(),
+        updated_count: current_count.saturating_sub(removed_count),
+        last_updated_at_ms: now_ms(),
+        is_offline: state.is_offline(),
+    })
 }
 
 fn resolve_token<R: Runtime>(
@@ -470,4 +533,118 @@ async fn refresh_cached_oauth_session<R: Runtime>(
     cache.token = Some(refreshed.access_token);
     cache.client = None;
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use crate::modules::gitlab::InboxData;
+    use crate::modules::utils::lock_or_recover;
+
+    use super::{InboxServiceError, InboxState, mark_as_done_with_confirmation};
+
+    fn create_inbox_data(todo_ids: &[u64]) -> InboxData {
+        serde_json::from_value(serde_json::json!({
+            "mergeRequests": [],
+            "todos": todo_ids
+                .iter()
+                .map(|id| serde_json::json!({
+                    "id": id,
+                    "project_id": 1,
+                    "author": {
+                        "id": 7,
+                        "name": "Reviewer",
+                        "username": "reviewer",
+                        "avatar_url": null
+                    },
+                    "action_name": super::TODO_ACTION_MENTIONED,
+                    "target_type": "MergeRequest",
+                    "target_url": format!("https://gitlab.com/example/repo/-/merge_requests/{id}"),
+                    "target": null,
+                    "body": format!("todo {id}"),
+                    "state": "pending",
+                    "created_at": "2026-03-31T10:00:00.000Z"
+                }))
+                .collect::<Vec<_>>(),
+            "pipelines": []
+        }))
+        .expect("test inbox data should deserialize")
+    }
+
+    fn create_state_with_todos(todo_ids: &[u64]) -> InboxState {
+        let state = InboxState::new();
+        state.set_data(create_inbox_data(todo_ids));
+        state.unread_count.store(todo_ids.len(), Ordering::Relaxed);
+        state
+    }
+
+    #[tokio::test]
+    async fn mark_as_done_updates_local_state_after_remote_success() {
+        let state = create_state_with_todos(&[42, 84]);
+        let confirmed_todo_id = Arc::new(AtomicU64::new(0));
+        let confirmed_todo_id_for_remote = Arc::clone(&confirmed_todo_id);
+
+        let local_update =
+            mark_as_done_with_confirmation(&state, 42, move |remote_todo_id| async move {
+                confirmed_todo_id_for_remote.store(remote_todo_id, Ordering::Relaxed);
+                Ok(())
+            })
+            .await
+            .expect("remote success should allow local update");
+
+        assert_eq!(confirmed_todo_id.load(Ordering::Relaxed), 42);
+        assert_eq!(local_update.updated_count, 1);
+        assert_eq!(local_update.updated_data.todos.len(), 1);
+        assert_eq!(local_update.updated_data.todos[0].id, 84);
+
+        let stored_data = lock_or_recover(&state.data, "test inbox data")
+            .clone()
+            .expect("state data should exist in test");
+        assert_eq!(stored_data.todos.len(), 1);
+        assert_eq!(stored_data.todos[0].id, 84);
+    }
+
+    #[tokio::test]
+    async fn mark_as_done_keeps_local_state_when_remote_confirmation_fails() {
+        let state = create_state_with_todos(&[42, 84]);
+
+        let result = mark_as_done_with_confirmation(&state, 42, |_remote_todo_id| async {
+            Err(InboxServiceError::Fetch("gitlab request failed".to_string()))
+        })
+        .await;
+
+        assert!(matches!(result, Err(InboxServiceError::Fetch(message)) if message == "gitlab request failed"));
+
+        let stored_data = lock_or_recover(&state.data, "test inbox data")
+            .clone()
+            .expect("state data should exist in test");
+        assert_eq!(stored_data.todos.len(), 2);
+        assert_eq!(stored_data.todos[0].id, 42);
+        assert_eq!(stored_data.todos[1].id, 84);
+    }
+
+    #[tokio::test]
+    async fn mark_as_done_does_not_call_remote_when_local_todo_is_missing() {
+        let state = create_state_with_todos(&[84]);
+        let remote_call_count = Arc::new(AtomicU64::new(0));
+        let remote_call_count_for_remote = Arc::clone(&remote_call_count);
+
+        let result =
+            mark_as_done_with_confirmation(&state, 42, move |_remote_todo_id| async move {
+                remote_call_count_for_remote.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+            .await;
+
+        assert!(matches!(result, Err(InboxServiceError::Fetch(message)) if message == "todo 42 not found"));
+        assert_eq!(remote_call_count.load(Ordering::Relaxed), 0);
+
+        let stored_data = lock_or_recover(&state.data, "test inbox data")
+            .clone()
+            .expect("state data should exist in test");
+        assert_eq!(stored_data.todos.len(), 1);
+        assert_eq!(stored_data.todos[0].id, 84);
+    }
 }
