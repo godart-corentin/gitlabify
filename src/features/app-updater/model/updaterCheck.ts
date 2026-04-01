@@ -1,5 +1,7 @@
 import { check } from "@tauri-apps/plugin-updater";
 
+import { isObject, isString } from "../../../shared/lib/type-guards";
+
 import {
   MOCK_UPDATER_ENV_FLAG,
   MOCK_UPDATER_INSTALL_DELAY_MS,
@@ -11,11 +13,6 @@ import type { UpdateMetadata } from "./updaterTypes";
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
 };
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const isString = (value: unknown): value is string => typeof value === "string";
 
 export const isTauriRuntime = () => {
   if (typeof window === "undefined") {

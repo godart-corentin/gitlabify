@@ -2,14 +2,13 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { onAction } from "@tauri-apps/plugin-notification";
 import { useEffect } from "react";
 
+import { isObject } from "../../../shared/lib/type-guards";
+
 import { isTauriRuntime } from "./updaterCheck";
 import { UPDATE_NOTIFICATION_KIND } from "./updaterConstants";
 
 const isUpdateNotification = (value: unknown): boolean =>
-  typeof value === "object" &&
-  value !== null &&
-  "kind" in value &&
-  value.kind === UPDATE_NOTIFICATION_KIND;
+  isObject(value) && "kind" in value && value.kind === UPDATE_NOTIFICATION_KIND;
 
 const openAppWindow = async () => {
   const appWindow = getCurrentWebviewWindow();
