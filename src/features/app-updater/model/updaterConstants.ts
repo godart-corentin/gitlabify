@@ -1,0 +1,13 @@
+export const UPDATER_STORE_FILE = "app-updater-preferences.json";
+export const LAST_NOTIFIED_VERSION_KEY = "last_notified_version";
+export const UPDATE_NOTIFICATION_KIND = "app-update";
+export const UPDATE_NOTIFICATION_TITLE = "Update available";
+export const TAURI_INTERNALS_WINDOW_KEY = "__TAURI_INTERNALS__";
+export const MOCK_UPDATER_ENV_FLAG = "true";
+export const MOCK_UPDATER_VERSION = "9.9.9-mock";
+export const MOCK_UPDATER_INSTALL_DELAY_MS = 1200;
+export const MAX_PROGRESS_PERCENT = 100;
+export const MIN_PROGRESS_PERCENT = 0;
+export const PERCENTAGE_MULTIPLIER = 100;
+export const UPDATER_RECHECK_INTERVAL_MS = 21600000;
+export const UPDATER_STARTUP_CHECK_DELAY_MS = 3000;
