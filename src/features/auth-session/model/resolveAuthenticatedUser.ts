@@ -2,8 +2,11 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { User } from "../../../entities/inbox/model";
 import { AUTH_TOKEN_QUERY_KEY } from "../../../shared/api/queryKeys";
+import { reportFrontendWarning } from "../../../shared/lib/sentry";
 
 import { isInsufficientScopeError, isInvalidTokenError } from "./authErrorGuards";
+
+const AUTH_SESSION_FEATURE = "auth-session";
 
 type ResolveAuthenticatedUserArgs = {
   token: string;
@@ -29,7 +32,11 @@ export const resolveAuthenticatedUser = async ({
       try {
         await fetchInboxFn();
       } catch (refreshError) {
-        console.warn("Inbox refresh failed during auth recovery", refreshError);
+        reportFrontendWarning("Inbox refresh failed during auth recovery", {
+          action: "refresh-inbox",
+          error: refreshError,
+          feature: AUTH_SESSION_FEATURE,
+        });
       }
 
       const latestToken = await getTokenFn();

@@ -6,6 +6,8 @@ import {
   Importance,
 } from "@tauri-apps/plugin-notification";
 
+import { reportFrontendWarning } from "../../../shared/lib/sentry";
+
 export type NotificationConfig = {
   title: string;
   body?: string;
@@ -16,6 +18,7 @@ export type NotificationConfig = {
 };
 
 const WINDOW_TAURI_GLOBAL = "__TAURI_INTERNALS__";
+const INBOX_NOTIFICATIONS_FEATURE = "inbox-notifications";
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -47,7 +50,11 @@ const initChannels = async () => {
       }),
     ]);
   } catch (error) {
-    console.warn("Failed to initialize notification channels", error);
+    reportFrontendWarning("Failed to initialize notification channels", {
+      action: "initialize-notification-channels",
+      error,
+      feature: INBOX_NOTIFICATIONS_FEATURE,
+    });
   }
 };
 
@@ -67,7 +74,11 @@ export const ensureNotificationPermission = async () => {
       }
       return false;
     } catch (error) {
-      console.warn("Tauri notification permission check/request failed", error);
+      reportFrontendWarning("Tauri notification permission check/request failed", {
+        action: "request-notification-permission",
+        error,
+        feature: INBOX_NOTIFICATIONS_FEATURE,
+      });
       return false;
     }
   }
@@ -111,7 +122,15 @@ export const showDesktopNotification = async ({
       await sendNotification(options);
       return;
     } catch (error) {
-      console.warn("Tauri notification send failed", error);
+      reportFrontendWarning("Tauri notification send failed", {
+        action: "send-notification",
+        error,
+        extra: {
+          importance: importance ?? "Default",
+          title,
+        },
+        feature: INBOX_NOTIFICATIONS_FEATURE,
+      });
     }
 
     return;

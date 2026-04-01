@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef } from "react";
 
 import { getGroupedItems, type InboxData } from "../../../entities/inbox/model";
+import { reportFrontendWarning } from "../../../shared/lib/sentry";
 
 import { ensureNotificationPermission, showDesktopNotification } from "./notificationDelivery";
 import {
@@ -21,6 +22,7 @@ import {
 
 const NOTIFICATION_SOUND_SRC = "/notification-sound.mp3";
 const AUDIO_START_TIME_SEC = 0;
+const INBOX_NOTIFICATIONS_FEATURE = "inbox-notifications";
 
 export const useInboxNotifications = (
   inboxData: InboxData | null | undefined,
@@ -56,11 +58,19 @@ export const useInboxNotifications = (
 
         unregister = () => {
           listener.unregister().catch((err) => {
-            console.warn("Failed to unregister notification action listener", err);
+            reportFrontendWarning("Failed to unregister notification action listener", {
+              action: "unregister-notification-action-listener",
+              error: err,
+              feature: INBOX_NOTIFICATIONS_FEATURE,
+            });
           });
         };
       } catch (error) {
-        console.warn("Failed to register notification action listener", error);
+        reportFrontendWarning("Failed to register notification action listener", {
+          action: "register-notification-action-listener",
+          error,
+          feature: INBOX_NOTIFICATIONS_FEATURE,
+        });
       }
     };
 
@@ -122,7 +132,11 @@ export const useInboxNotifications = (
         })
         .catch((error) => {
           isPlayingRef.current = false;
-          console.warn("Unable to play notification sound", error);
+          reportFrontendWarning("Unable to play notification sound", {
+            action: "play-notification-sound",
+            error,
+            feature: INBOX_NOTIFICATIONS_FEATURE,
+          });
         });
     };
 

@@ -1,6 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const { reportFrontendErrorMock } = vi.hoisted(() => ({
+  reportFrontendErrorMock: vi.fn(),
+}));
+
+vi.mock("../../../shared/lib/sentry", () => ({
+  reportFrontendError: reportFrontendErrorMock,
+}));
+
 import {
   UPDATER_STARTUP_CHECK_DELAY_MS,
   resetAppUpdaterSessionStateForTests,
@@ -297,6 +305,14 @@ describe("useAppUpdater", () => {
     await flushPromises();
 
     expect(result.current.status).toBe("error");
+    expect(reportFrontendErrorMock).toHaveBeenCalledWith(
+      "Failed to install app update",
+      expect.objectContaining({
+        action: "install-update",
+        error: expect.any(Error),
+        feature: "app-updater",
+      }),
+    );
 
     await act(async () => {
       await result.current.installUpdate();

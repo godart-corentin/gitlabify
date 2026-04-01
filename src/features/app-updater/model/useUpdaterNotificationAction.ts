@@ -2,10 +2,13 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { onAction } from "@tauri-apps/plugin-notification";
 import { useEffect } from "react";
 
+import { reportFrontendWarning } from "../../../shared/lib/sentry";
 import { isObject } from "../../../shared/lib/type-guards";
 
 import { isTauriRuntime } from "./updaterCheck";
 import { UPDATE_NOTIFICATION_KIND } from "./updaterConstants";
+
+const APP_UPDATER_FEATURE = "app-updater";
 
 const isUpdateNotification = (value: unknown): boolean =>
   isObject(value) && "kind" in value && value.kind === UPDATE_NOTIFICATION_KIND;
@@ -34,7 +37,11 @@ export const useUpdaterNotificationAction = () => {
           try {
             await openAppWindow();
           } catch (error) {
-            console.warn("Failed to open app after update notification click", error);
+            reportFrontendWarning("Failed to open app after update notification click", {
+              action: "open-window-from-notification",
+              error,
+              feature: APP_UPDATER_FEATURE,
+            });
           }
         });
 
@@ -45,11 +52,19 @@ export const useUpdaterNotificationAction = () => {
 
         unregister = () => {
           listener.unregister().catch((error) => {
-            console.warn("Failed to unregister app updater notification listener", error);
+            reportFrontendWarning("Failed to unregister app updater notification listener", {
+              action: "unregister-update-notification-listener",
+              error,
+              feature: APP_UPDATER_FEATURE,
+            });
           });
         };
       } catch (error) {
-        console.warn("Failed to register app updater notification listener", error);
+        reportFrontendWarning("Failed to register app updater notification listener", {
+          action: "register-update-notification-listener",
+          error,
+          feature: APP_UPDATER_FEATURE,
+        });
       }
     };
 
