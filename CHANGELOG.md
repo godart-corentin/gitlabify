@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-01
+
+### Changed
+
+- Reduced inbox refresh latency by parallelizing merge request enrichment in the Rust backend while keeping request concurrency bounded.
+- Refactored the app updater into focused model modules with shared type guards to make the frontend logic easier to maintain and test.
+
+### Fixed
+
+- Marking a to-do as done now confirms the remote GitLab result before failing on missing local cache state, preventing false errors after successful completions.
+- Frontend updater, auth, notification, theme, and window pin failures are now reported to Sentry with consistent shared context.
+
 ## [1.3.0] - 2026-03-28
 
 ### Added
