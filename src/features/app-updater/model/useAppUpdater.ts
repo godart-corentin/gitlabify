@@ -3,6 +3,7 @@ import type { Store } from "@tauri-apps/plugin-store";
 import type { DownloadEvent } from "@tauri-apps/plugin-updater";
 import { useCallback, useRef, useState } from "react";
 
+import { reportFrontendError, reportFrontendWarning } from "../../../shared/lib/sentry";
 import {
   ensureNotificationPermission,
   showDesktopNotification,
@@ -44,6 +45,7 @@ export { resetAppUpdaterSessionStateForTests };
 
 const getUpdateNotificationBody = (version: string) =>
   `Gitlabify ${version} is available. Open the app to update.`;
+const APP_UPDATER_FEATURE = "app-updater";
 
 const toErrorMessage = (error: unknown, fallbackMessage: string) => {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -91,7 +93,12 @@ export const useAppUpdater = (): UpdaterState => {
           await saveLastNotifiedVersion(store, version);
         }
       } catch (error) {
-        console.warn("Failed to notify about available app update", error);
+        reportFrontendWarning("Failed to notify about available app update", {
+          action: "notify-about-update",
+          error,
+          extra: { version },
+          feature: APP_UPDATER_FEATURE,
+        });
       }
     },
     [],
@@ -123,7 +130,11 @@ export const useAppUpdater = (): UpdaterState => {
         setSnapshot((current) =>
           createUpdaterErrorState(current, toErrorMessage(error, "Unable to check for updates.")),
         );
-        console.warn("Failed to check for app update", error);
+        reportFrontendError("Failed to check for app update", {
+          action: "check-for-updates",
+          error,
+          feature: APP_UPDATER_FEATURE,
+        });
       } finally {
         isCheckingRef.current = false;
       }
@@ -166,7 +177,12 @@ export const useAppUpdater = (): UpdaterState => {
       setSnapshot((current) =>
         createUpdaterErrorState(current, toErrorMessage(error, "Unable to install update.")),
       );
-      console.warn("Failed to install app update", error);
+      reportFrontendError("Failed to install app update", {
+        action: "install-update",
+        error,
+        extra: { version: availableUpdate.version },
+        feature: APP_UPDATER_FEATURE,
+      });
     } finally {
       isInstallingRef.current = false;
     }
@@ -186,7 +202,11 @@ export const useAppUpdater = (): UpdaterState => {
           toErrorMessage(error, "Unable to restart app to apply update."),
         ),
       );
-      console.warn("Failed to relaunch app after update", error);
+      reportFrontendError("Failed to relaunch app after update", {
+        action: "restart-to-apply-update",
+        error,
+        feature: APP_UPDATER_FEATURE,
+      });
     }
   }, [snapshot.status]);
 

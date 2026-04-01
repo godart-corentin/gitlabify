@@ -1,11 +1,14 @@
 import { Store } from "@tauri-apps/plugin-store";
 import { useEffect, useRef, useState } from "react";
 
+import { reportFrontendError } from "../../../shared/lib/sentry";
+
 export type ThemeMode = "light" | "dark";
 
 const THEME_STORE_FILE = "ui-preferences.json";
 const THEME_STORE_KEY = "theme";
 const DARK_MEDIA_QUERY = "(prefers-color-scheme: dark)";
+const THEME_SWITCHER_FEATURE = "theme-switcher";
 
 const isThemeMode = (value: unknown): value is ThemeMode => value === "light" || value === "dark";
 
@@ -53,7 +56,11 @@ export const useTheme = () => {
           setThemeState(value);
         }
       } catch (error) {
-        console.error("Failed to load theme preference", error);
+        reportFrontendError("Failed to load theme preference", {
+          action: "load-theme",
+          error,
+          feature: THEME_SWITCHER_FEATURE,
+        });
       }
     };
 
@@ -95,7 +102,12 @@ export const useTheme = () => {
       await store.set(THEME_STORE_KEY, mode);
       await store.save();
     } catch (error) {
-      console.error("Failed to persist theme preference", error);
+      reportFrontendError("Failed to persist theme preference", {
+        action: "persist-theme",
+        error,
+        extra: { mode },
+        feature: THEME_SWITCHER_FEATURE,
+      });
     }
   };
 

@@ -1,6 +1,14 @@
 import { sendNotification } from "@tauri-apps/plugin-notification";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+const { reportFrontendWarningMock } = vi.hoisted(() => ({
+  reportFrontendWarningMock: vi.fn(),
+}));
+
+vi.mock("../../../shared/lib/sentry", () => ({
+  reportFrontendWarning: reportFrontendWarningMock,
+}));
+
 import { showDesktopNotification } from "./notificationDelivery";
 
 vi.mock("@tauri-apps/plugin-notification", () => ({
@@ -57,6 +65,26 @@ describe("notificationDelivery", () => {
           version: "1.2.3",
           url: "https://gitlab.com",
         },
+      }),
+    );
+  });
+
+  it("reports a warning when Tauri notification delivery fails", async () => {
+    vi.stubGlobal("__TAURI_INTERNALS__", {});
+    const deliveryError = new Error("delivery failed");
+    vi.mocked(sendNotification).mockRejectedValueOnce(deliveryError);
+
+    await showDesktopNotification({
+      title: "Test Title",
+      body: "Test Body",
+    });
+
+    expect(reportFrontendWarningMock).toHaveBeenCalledWith(
+      "Tauri notification send failed",
+      expect.objectContaining({
+        action: "send-notification",
+        error: deliveryError,
+        feature: "inbox-notifications",
       }),
     );
   });

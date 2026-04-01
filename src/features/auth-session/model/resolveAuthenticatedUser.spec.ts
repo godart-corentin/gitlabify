@@ -4,6 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { User } from "../../../entities/inbox/model";
 import { AUTH_TOKEN_QUERY_KEY } from "../../../shared/api/queryKeys";
 
+const { reportFrontendWarningMock } = vi.hoisted(() => ({
+  reportFrontendWarningMock: vi.fn(),
+}));
+
+vi.mock("../../../shared/lib/sentry", () => ({
+  reportFrontendWarning: reportFrontendWarningMock,
+}));
+
 import { resolveAuthenticatedUser } from "./resolveAuthenticatedUser";
 
 const USER_FIXTURE: User = {
@@ -57,5 +65,32 @@ describe("resolveAuthenticatedUser", () => {
 
     expect(deleteTokenFn).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(AUTH_TOKEN_QUERY_KEY)).toBeNull();
+  });
+
+  it("reports a warning when inbox refresh fails during auth recovery", async () => {
+    const queryClient = new QueryClient();
+    const refreshError = new Error("refresh failed");
+
+    const verifyTokenFn = vi.fn(async (_token: string) => USER_FIXTURE);
+    verifyTokenFn.mockRejectedValueOnce({ type: "invalidToken" });
+    verifyTokenFn.mockResolvedValueOnce(USER_FIXTURE);
+
+    await resolveAuthenticatedUser({
+      token: "old-token",
+      queryClient,
+      verifyTokenFn,
+      fetchInboxFn: vi.fn().mockRejectedValue(refreshError),
+      getTokenFn: vi.fn().mockResolvedValue("new-token"),
+      deleteTokenFn: vi.fn().mockResolvedValue(undefined),
+    });
+
+    expect(reportFrontendWarningMock).toHaveBeenCalledWith(
+      "Inbox refresh failed during auth recovery",
+      expect.objectContaining({
+        action: "refresh-inbox",
+        error: refreshError,
+        feature: "auth-session",
+      }),
+    );
   });
 });
