@@ -21,8 +21,8 @@
     "validate": "bun run lint && bun run format && bun run typecheck && bun run test"
   },
   "dependencies": {
-    "@sentry/react": "^10.47.0",
-    "@tanstack/react-query": "^5.96.1",
+    "@sentry/react": "^10.49.0",
+    "@tanstack/react-query": "^5.99.0",
     "@tauri-apps/api": "^2.10.0",
     "@tauri-apps/plugin-notification": "^2.2.0",
     "@tauri-apps/plugin-opener": "^2",
@@ -31,9 +31,9 @@
     "@tauri-apps/plugin-updater": "^2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "lucide-react": "^1.7.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "lucide-react": "^1.8.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "sibyl-ts": "^0.7.1",
     "tailwind-merge": "^3.5.0"
   },
@@ -46,20 +46,20 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.1",
-    "@vitest/coverage-v8": "^4.1.2",
-    "@vitest/ui": "^4.1.2",
-    "autoprefixer": "^10.4.27",
+    "@vitest/coverage-v8": "^4.1.4",
+    "@vitest/ui": "^4.1.4",
+    "autoprefixer": "^10.5.0",
     "daisyui": "^5.5.19",
     "husky": "^9.1.7",
-    "jsdom": "^29.0.1",
+    "jsdom": "^29.0.2",
     "lint-staged": "^16.4.0",
-    "oxfmt": "^0.43.0",
-    "oxlint": "^1.58.0",
-    "postcss": "^8.5.8",
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
+    "postcss": "^8.5.10",
     "tailwindcss": "^4.2.2",
     "typescript": "~6.0.2",
-    "vite": "^8.0.3",
-    "vitest": "^4.1.2"
+    "vite": "^8.0.8",
+    "vitest": "^4.1.4"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
